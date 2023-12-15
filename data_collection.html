@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.353">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Data Collection</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="data_collection_files/libs/clipboard/clipboard.min.js"></script>
+<script src="data_collection_files/libs/quarto-html/quarto.js"></script>
+<script src="data_collection_files/libs/quarto-html/popper.min.js"></script>
+<script src="data_collection_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="data_collection_files/libs/quarto-html/anchor.min.js"></script>
+<link href="data_collection_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="data_collection_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="data_collection_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="data_collection_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="data_collection_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Data Collection</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load Libraries</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    libraries <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"janitor"</span>, <span class="st">"tidyverse"</span>, <span class="st">"sf"</span>, <span class="st">"here"</span>, <span class="st">"sp"</span>, <span class="st">"knitr"</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">lapply</span>(libraries, <span class="cf">function</span>(x) {</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (<span class="sc">!</span><span class="fu">require</span>(x, <span class="at">character.only =</span> <span class="cn">TRUE</span>)) {</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>            <span class="fu">install.packages</span>(x)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>            <span class="fu">library</span>(x, <span class="at">character.only =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    })</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: janitor</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'janitor' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'janitor'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:stats':
+
+    chisq.test, fisher.test</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: tidyverse</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'tidyverse' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'ggplot2' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'tibble' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'tidyr' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'readr' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'purrr' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'dplyr' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'stringr' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'forcats' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'lubridate' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+✔ dplyr     1.1.3     ✔ readr     2.1.4
+✔ forcats   1.0.0     ✔ stringr   1.5.0
+✔ ggplot2   3.4.4     ✔ tibble    3.2.1
+✔ lubridate 1.9.3     ✔ tidyr     1.3.0
+✔ purrr     1.0.2     </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()
+ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors
+Loading required package: sf</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'sf' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Linking to GEOS 3.11.2, GDAL 3.7.2, PROJ 9.3.0; sf_use_s2() is TRUE
+Loading required package: here</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'here' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>here() starts at C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil
+Loading required package: sp</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'sp' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Loading required package: knitr</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: package 'knitr' was built under R version 4.3.2</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[[1]]
+NULL
+
+[[2]]
+NULL
+
+[[3]]
+NULL
+
+[[4]]
+NULL
+
+[[5]]
+NULL
+
+[[6]]
+NULL</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Function to Read Shapefiles and Check/Reproject CRS</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>read_shapefile_and_check_crs <span class="ot">&lt;-</span> <span class="cf">function</span>(file_path, <span class="at">target_crs_epsg =</span> <span class="dv">2229</span>) { <span class="co"># EPSG code for NAD83</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    sf_object <span class="ot">&lt;-</span> <span class="fu">st_read</span>(<span class="fu">here</span>(file_path))</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Check if CRS EPSG code is not the target CRS EPSG code</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    current_crs_epsg <span class="ot">&lt;-</span> <span class="fu">st_crs</span>(sf_object)<span class="sc">$</span>epsg</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.na</span>(current_crs_epsg) <span class="sc">&amp;&amp;</span> current_crs_epsg <span class="sc">!=</span> target_crs_epsg) {</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>        <span class="fu">message</span>(<span class="st">"Reprojecting "</span>, file_path, <span class="st">" from EPSG:"</span>, current_crs_epsg, <span class="st">" to EPSG:"</span>, target_crs_epsg)</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>        sf_object <span class="ot">&lt;-</span> <span class="fu">st_transform</span>(sf_object, <span class="at">crs =</span> target_crs_epsg)</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    } <span class="cf">else</span> {</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>        <span class="fu">message</span>(file_path, <span class="st">" is already in the target CRS (EPSG:"</span>, target_crs_epsg, <span class="st">")."</span>)</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span>(sf_object)</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Initialize a vector to store variable names</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>created_variables <span class="ot">&lt;-</span> <span class="fu">c</span>()</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Function to create a variable name from a filename</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>create_var_name <span class="ot">&lt;-</span> <span class="cf">function</span>(filename) {</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">gsub</span>(<span class="st">"</span><span class="sc">\\</span><span class="st">.shp$"</span>, <span class="st">""</span>, <span class="fu">basename</span>(filename))</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Iterate through each subfolder in the 'data' directory</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>subfolders <span class="ot">&lt;-</span> <span class="fu">list.dirs</span>(<span class="fu">here</span>(<span class="st">"data"</span>), <span class="at">full.names =</span> <span class="cn">TRUE</span>, <span class="at">recursive =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (folder <span class="cf">in</span> subfolders) {</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>  <span class="co"># List all shapefiles in the subfolder</span></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>  shapefiles <span class="ot">&lt;-</span> <span class="fu">list.files</span>(folder, <span class="at">pattern =</span> <span class="st">"</span><span class="sc">\\</span><span class="st">.shp$"</span>, <span class="at">full.names =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Read each shapefile and assign to a variable</span></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (shapefile <span class="cf">in</span> shapefiles) {</span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>    var_name <span class="ot">&lt;-</span> <span class="fu">create_var_name</span>(shapefile)</span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">assign</span>(var_name, <span class="fu">read_shapefile_and_check_crs</span>(shapefile))</span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>    created_variables <span class="ot">&lt;-</span> <span class="fu">c</span>(created_variables, var_name)</span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `Ag_Greenbelts_02182021' from data source 
+  `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\Ag_Greenbelts_02182021\Ag_Greenbelts_02182021.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 261 features and 2 fields
+Geometry type: MULTIPOLYGON
+Dimension:     XY
+Bounding box:  xmin: 5926369 ymin: 1967171 xmax: 6125165 ymax: 2026247
+Projected CRS: NAD83 / California zone 5 (ftUS)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/Ag_Greenbelts_02182021/Ag_Greenbelts_02182021.shp is already in the target CRS (EPSG:2229).</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `Camino_Cielo_Fuelbreak' from data source 
+  `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\Camino_Cielo_Fuelbreak\Camino_Cielo_Fuelbreak.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 5 features and 5 fields
+Geometry type: MULTIPOLYGON
+Dimension:     XY
+Bounding box:  xmin: 5943308 ymin: 1994587 xmax: 6128850 ymax: 2024644
+Projected CRS: NAD83 / California zone 5 (ftUS)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/Camino_Cielo_Fuelbreak/Camino_Cielo_Fuelbreak.shp is already in the target CRS (EPSG:2229).</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017' from data source `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017\LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 10 features and 5 fields
+Geometry type: MULTIPOLYGON
+Dimension:     XY
+Bounding box:  xmin: 5943308 ymin: 1994587 xmax: 6128850 ymax: 2025307
+Projected CRS: NAD83 / California zone 5 (ftUS)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017/LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017.shp is already in the target CRS (EPSG:2229).</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `Projects_Grazing' from data source 
+  `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\MFD CalVTP Projects_20220607\Projects_Grazing.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 25 features and 28 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: -13322190 ymin: 4086196 xmax: -13311940 ymax: 4091783
+Projected CRS: WGS 84 / Pseudo-Mercator</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Reprojecting C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/MFD CalVTP Projects_20220607/Projects_Grazing.shp from EPSG:3857 to EPSG:2229</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `Projects_MixedTreatment' from data source 
+  `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\MFD CalVTP Projects_20220607\Projects_MixedTreatment.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 29 features and 16 fields
+Geometry type: MULTIPOLYGON
+Dimension:     XY
+Bounding box:  xmin: -13323680 ymin: 4087111 xmax: -13312000 ymax: 4091409
+Projected CRS: WGS 84 / Pseudo-Mercator</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Reprojecting C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/MFD CalVTP Projects_20220607/Projects_MixedTreatment.shp from EPSG:3857 to EPSG:2229</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `Natural_Fuel_Break_Existing_05012017' from data source 
+  `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\Natural_Fuel_Break_Existing_05012017\Natural_Fuel_Break_Existing_05012017.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 54 features and 2 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 5980106 ymin: 1985972 xmax: 6054903 ymax: 1999869
+Projected CRS: NAD83 / California zone 5 (ftUS)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/Natural_Fuel_Break_Existing_05012017/Natural_Fuel_Break_Existing_05012017.shp is already in the target CRS (EPSG:2229).</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `Private_Completed_Fuel_Treatments_SMP_CWPP_Final_05012017' from data source `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\Private_Completed_Fuel_Treatments_SMP_CWPP_Final_05012017\Private_Completed_Fuel_Treatments_SMP_CWPP_Final_05012017.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 29 features and 5 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 6010501 ymin: 1993783 xmax: 6030884 ymax: 2024420
+Projected CRS: NAD83 / California zone 5 (ftUS)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/Private_Completed_Fuel_Treatments_SMP_CWPP_Final_05012017/Private_Completed_Fuel_Treatments_SMP_CWPP_Final_05012017.shp is already in the target CRS (EPSG:2229).</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `SB_City_Completed_Veg_Projects' from data source 
+  `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\SB City Completed Projects SHP\SB_City_Completed_Veg_Projects.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 28 features and 5 fields
+Geometry type: MULTIPOLYGON
+Dimension:     XY
+Bounding box:  xmin: 6038648 ymin: 1981899 xmax: 6062259 ymax: 1994971
+Projected CRS: NAD83 / California zone 5 (ftUS)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/SB City Completed Projects SHP/SB_City_Completed_Veg_Projects.shp is already in the target CRS (EPSG:2229).</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `SB_City_Future_Projects' from data source 
+  `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\SB City Future Projects\SB_City_Future_Projects.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 36 features and 3 fields
+Geometry type: MULTIPOLYGON
+Dimension:     XY
+Bounding box:  xmin: 6032108 ymin: 1974031 xmax: 6063272 ymax: 1995721
+Projected CRS: NAD83 / California zone 5 (ftUS)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/SB City Future Projects/SB_City_Future_Projects.shp is already in the target CRS (EPSG:2229).</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Reading layer `SBC_Planned_Fuel_Treatments_SMP_CWPP_Updated_08302022' from data source `C:\Users\bsf31\Documents\post-meds\github\signal\sbfiresafecouncil\data\SBC_Planned_Fuel_Treatments_SMP_CWPP_Updated_08302022\SBC_Planned_Fuel_Treatments_SMP_CWPP_Updated_08302022.shp' 
+  using driver `ESRI Shapefile'
+Simple feature collection with 38 features and 10 fields
+Geometry type: POLYGON
+Dimension:     XY
+Bounding box:  xmin: 5998380 ymin: 1991001 xmax: 6030369 ymax: 2025200
+Projected CRS: NAD83 / California zone 5 (ftUS)</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>C:/Users/bsf31/Documents/post-meds/github/signal/sbfiresafecouncil/data/SBC_Planned_Fuel_Treatments_SMP_CWPP_Updated_08302022/SBC_Planned_Fuel_Treatments_SMP_CWPP_Updated_08302022.shp is already in the target CRS (EPSG:2229).</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Print the created variable names</span></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="st">"Variables created for shapefiles:"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "Variables created for shapefiles:"</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>created_variables</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code> [1] "Ag_Greenbelts_02182021"                                   
+ [2] "Camino_Cielo_Fuelbreak"                                   
+ [3] "LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017"         
+ [4] "Projects_Grazing"                                         
+ [5] "Projects_MixedTreatment"                                  
+ [6] "Natural_Fuel_Break_Existing_05012017"                     
+ [7] "Private_Completed_Fuel_Treatments_SMP_CWPP_Final_05012017"
+ [8] "SB_City_Completed_Veg_Projects"                           
+ [9] "SB_City_Future_Projects"                                  
+[10] "SBC_Planned_Fuel_Treatments_SMP_CWPP_Updated_08302022"    </code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Function to create and display a table for a given shapefile</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a>create_and_display_table <span class="ot">&lt;-</span> <span class="cf">function</span>(sf_object, shapefile_name) {</span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a>  col_names <span class="ot">&lt;-</span> <span class="fu">names</span>(sf_object)</span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a>  col_table <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="sc">!!</span><span class="fu">sym</span>(shapefile_name) <span class="sc">:</span><span class="er">=</span> col_names)</span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(col_table, <span class="at">caption =</span> <span class="fu">paste</span>(<span class="st">"Columns in"</span>, shapefile_name))</span>
+<span id="cb53-6"><a href="#cb53-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb53-7"><a href="#cb53-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-8"><a href="#cb53-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Iterate over the created variables and create &amp; display a table for each</span></span>
+<span id="cb53-9"><a href="#cb53-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (var_name <span class="cf">in</span> created_variables) {</span>
+<span id="cb53-10"><a href="#cb53-10" aria-hidden="true" tabindex="-1"></a>  sf_object <span class="ot">&lt;-</span> <span class="fu">get</span>(var_name)</span>
+<span id="cb53-11"><a href="#cb53-11" aria-hidden="true" tabindex="-1"></a>  table <span class="ot">&lt;-</span> <span class="fu">create_and_display_table</span>(sf_object, var_name)</span>
+<span id="cb53-12"><a href="#cb53-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">print</span>(table)</span>
+<span id="cb53-13"><a href="#cb53-13" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+
+Table: Columns in Ag_Greenbelts_02182021
+
+|Ag_Greenbelts_02182021 |
+|:----------------------|
+|Id                     |
+|Acres                  |
+|geometry               |
+
+
+Table: Columns in Camino_Cielo_Fuelbreak
+
+|Camino_Cielo_Fuelbreak |
+|:----------------------|
+|Id                     |
+|Name                   |
+|Acres                  |
+|Status                 |
+|Agency                 |
+|geometry               |
+
+
+Table: Columns in LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017
+
+|LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017 |
+|:------------------------------------------------|
+|Id                                               |
+|Name                                             |
+|Acres                                            |
+|Agency                                           |
+|Status                                           |
+|geometry                                         |
+
+
+Table: Columns in Projects_Grazing
+
+|Projects_Grazing |
+|:----------------|
+|MapNum           |
+|Owner            |
+|Project_Na       |
+|Days_Cmplt       |
+|Treatment_       |
+|Treatment1       |
+|Maintenanc       |
+|Timeframe_       |
+|Workers          |
+|Mechanical       |
+|Veg_Retain       |
+|Timing           |
+|Notes            |
+|Trmt_Typ         |
+|Tons_Rmvd        |
+|Contractor       |
+|Cost             |
+|Date_Cmplt       |
+|ID               |
+|FormerMapI       |
+|Acres            |
+|GlobalID         |
+|created_us       |
+|created_da       |
+|last_edite       |
+|last_edi_1       |
+|Shape_STAr       |
+|Shape_STLe       |
+|geometry         |
+
+
+Table: Columns in Projects_MixedTreatment
+
+|Projects_MixedTreatment |
+|:-----------------------|
+|MapNum                  |
+|Project_Na              |
+|Treatment_              |
+|Treatment1              |
+|Notes                   |
+|Date_Cmplt              |
+|ID                      |
+|FomerMapID              |
+|Acres                   |
+|GlobalID                |
+|created_us              |
+|created_da              |
+|last_edite              |
+|last_edi_1              |
+|Shape_STAr              |
+|Shape_STLe              |
+|geometry                |
+
+
+Table: Columns in Natural_Fuel_Break_Existing_05012017
+
+|Natural_Fuel_Break_Existing_05012017 |
+|:------------------------------------|
+|Id                                   |
+|Acres                                |
+|geometry                             |
+
+
+Table: Columns in Private_Completed_Fuel_Treatments_SMP_CWPP_Final_05012017
+
+|Private_Completed_Fuel_Treatments_SMP_CWPP_Final_05012017 |
+|:---------------------------------------------------------|
+|Id                                                        |
+|Acres                                                     |
+|Community                                                 |
+|Status                                                    |
+|Maintenanc                                                |
+|geometry                                                  |
+
+
+Table: Columns in SB_City_Completed_Veg_Projects
+
+|SB_City_Completed_Veg_Projects |
+|:------------------------------|
+|SHAPE_Area                     |
+|TREATMENT_                     |
+|FUEL_MGMT                      |
+|WorkArea                       |
+|Treatment                      |
+|geometry                       |
+
+
+Table: Columns in SB_City_Future_Projects
+
+|SB_City_Future_Projects |
+|:-----------------------|
+|Priority                |
+|VMU_Name                |
+|Shape_STAr              |
+|geometry                |
+
+
+Table: Columns in SBC_Planned_Fuel_Treatments_SMP_CWPP_Updated_08302022
+
+|SBC_Planned_Fuel_Treatments_SMP_CWPP_Updated_08302022 |
+|:-----------------------------------------------------|
+|Id                                                    |
+|Name                                                  |
+|Descript                                              |
+|Acres                                                 |
+|Fuel_Type                                             |
+|Agency                                                |
+|Status                                                |
+|Activity                                              |
+|Ownership                                             |
+|Community                                             |
+|geometry                                              |</code></pre>
+</div>
+</div>
+<section id="function-to-select-columns" class="level1">
+<h1>Function to Select Columns</h1>
+<p>select_columns &lt;- function(sf_object, columns) { select(sf_object, all_of(columns)) }</p>
+</section>
+<section id="function-to-mutate-columns" class="level1">
+<h1>Function to Mutate Columns</h1>
+<p>mutate_columns &lt;- function(sf_object, …) { mutate(sf_object, …) }</p>
+</section>
+<section id="function-to-rename-columns" class="level1">
+<h1>Function to Rename Columns</h1>
+<p>rename_columns &lt;- function(sf_object, …) { rename(sf_object, …) }</p>
+</section>
+<section id="function-to-merge-data" class="level1">
+<h1>Function to Merge Data</h1>
+<p>merge_data &lt;- function(…) { bind_rows(…) }</p>
+</section>
+<section id="function-to-export-data" class="level1">
+<h1>Function to Export Data</h1>
+<p>export_data &lt;- function(data, file_name) { st_write(data, paste0(file_name, “.shp”)) st_write(data, paste0(file_name, “.csv”)) }</p>
+</section>
+<section id="file-paths" class="level1">
+<h1>File Paths</h1>
+<p>file_paths &lt;- list( graz = “/Users/daniellopez/Downloads/Internship Data Packs/Projects_Grazing.shp”, veg_comp = “/Users/daniellopez/Downloads/Internship Data Packs/SB_City_Completed_Veg_Projects.shp”, # Add other file paths here )</p>
+</section>
+<section id="read-shapefiles" class="level1">
+<h1>Read Shapefiles</h1>
+<p>graz_sf &lt;- read_shapefile(file_paths<span class="math inline">\(graz) veg_comp_sf &lt;- read_shapefile(file_paths\)</span>veg_comp) # Read other shapefiles similarly</p>
+</section>
+<section id="re-project-crs-select-mutate-rename-for-each-shapefile" class="level1">
+<h1>Re-project CRS, Select, Mutate, Rename for each shapefile</h1>
+</section>
+<section id="use-the-functions-created-above" class="level1">
+<h1>Use the functions created above</h1>
+</section>
+<section id="merging-data" class="level1">
+<h1>Merging Data</h1>
+<p>merge_1 &lt;- merge_data(graz_sf, mixed_sf) # Other merges</p>
+</section>
+<section id="exporting-data" class="level1">
+<h1>Exporting Data</h1>
+<p>export_data(merge_6, “Final_Merge”)</p>
+</section>
+<section id="continue-with-other-operations" class="level1">
+<h1>Continue with other operations…</h1>
+<p>```</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
