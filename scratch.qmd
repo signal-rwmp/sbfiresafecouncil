@@ -608,6 +608,11 @@ server <- function(input, output, session) {
 
         # Combine the geometries
         combined_geometry <- do.call(rbind, geometries_list)
+        
+        # Example conversion of a boolean field to string
+        processed_data$`TF(DYS)` <- as.character(processed_data$`TF(DYS)`)
+        processed_data$DtComplt <- as.character(processed_data$DtComplt)
+
 
         # Create a new shapefile with the combined geometries
         new_shapefile <- st_sf(processed_data, geometry = st_sfc(combined_geometry))
@@ -629,46 +634,18 @@ server <- function(input, output, session) {
 shinyApp(ui, server)
 ```
 
-# Function to Select Columns
+```{r}
+new_shape <-  sf::st_read("new_shapefile.gpkg")
+```
 
-select_columns \<- function(sf_object, columns) { select(sf_object, all_of(columns)) }
+```{r}
+ag <-  sf::st_read(here('data','Ag_Greenbelts_02182021', 'Ag_Greenbelts_02182021.shp'))
+```
 
-# Function to Mutate Columns
+```{r}
+Camino_Cielo_Fuelbreak <-  sf::st_read(here('data','Camino_Cielo_Fuelbreak', 'Camino_Cielo_Fuelbreak.shp'))
+```
 
-mutate_columns \<- function(sf_object, ...) { mutate(sf_object, ...) }
-
-# Function to Rename Columns
-
-rename_columns \<- function(sf_object, ...) { rename(sf_object, ...) }
-
-# Function to Merge Data
-
-merge_data \<- function(...) { bind_rows(...) }
-
-# Function to Export Data
-
-export_data \<- function(data, file_name) { st_write(data, paste0(file_name, ".shp")) st_write(data, paste0(file_name, ".csv")) }
-
-# File Paths
-
-file_paths \<- list( graz = "/Users/daniellopez/Downloads/Internship Data Packs/Projects_Grazing.shp", veg_comp = "/Users/daniellopez/Downloads/Internship Data Packs/SB_City_Completed_Veg_Projects.shp", \# Add other file paths here )
-
-# Read Shapefiles
-
-graz_sf \<- read_shapefile(file_paths$graz) veg_comp_sf <- read_shapefile(file_paths$veg_comp) \# Read other shapefiles similarly
-
-# Re-project CRS, Select, Mutate, Rename for each shapefile
-
-# Use the functions created above
-
-# Merging Data
-
-merge_1 \<- merge_data(graz_sf, mixed_sf) \# Other merges
-
-# Exporting Data
-
-export_data(merge_6, "Final_Merge")
-
-# Continue with other operations...
-
-\`\`\`
+```{r}
+LPF <-  sf::st_read(here('data','LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017', 'LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017.shp'))
+```
