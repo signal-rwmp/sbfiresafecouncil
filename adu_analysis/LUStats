@@ -1,0 +1,401 @@
+# %%
+import pandas as pd
+import geopandas as gpd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import df2img
+
+# %%
+
+# Load the .gpkg file
+gdf = gpd.read_file(r"C:\Users\bsf31\Documents\post-meds\data\signal\built_env\parcels_rwmp_co.gpkg")
+
+# Count unique values in the 'landuse' column
+landuse_counts = gdf['LandUse'].value_counts()
+
+print(landuse_counts)
+
+
+# %%
+landuse_counts.sum()
+
+# %%
+# Convert the Series to a DataFrame for plotting
+df = landuse_counts.reset_index()
+df.columns = ['LandUse', 'Count']
+
+
+# %%
+# Map categories to the land use types
+categories = {
+    'Critical Infrastructure': ['UTILITY,WATER COMPANY', 'LIGHT MANUFACTURING', 'RIGHTS OF WAY,SEWER,LAND FILLS,ETC',
+                                'WATER RIGHTS,PUMPS', 'PUBLIC BLDGS,FIREHOUSES,MUSEUMS,POST OFFICES,ETC', 'SCHOOLS', 
+                                'HOSPITALS', 'PIPELINES,CANALS', 'PETROLEUM AND GAS','WASTE', 'COLLEGES'],
+    'Residential': ['SINGLE FAMILY RESIDENCE', 'CONDOS,COMMUNITY APT PROJS', 'MOBILE HOMES', 'RESIDENTIAL INCOME, 2-4 UNITS',
+                    'RANCHO ESTATES (RURAL HOME SITES)', 'APARTMENTS, 5 OR MORE UNITS', 'MIXED USE-COMMERCIAL/RESIDENTIAL','MOBILE HOME PARKS'],
+    'Commercial': ['RETAIL STORES, SINGLE STORY', 'COMMERCIAL (MISC)', 'COMMERCIAL AND OFFICE CONDOS,PUDS',
+                   'OFFICE BUILDINGS, SINGLE STORY', 'OFFICE BUILDINGS, MULTI-STORY', 'AUTO SALES, REPAIR, STORAGE, CAR WASH, ETC',
+                   'RESTAURANTS,BARS', 'HOTELS', 'SERVICE STATIONS', 'STORE AND OFFICE COMBINATION', 'SHOPPING CENTERS (NEIGHBORHOOD)',
+                   'BANKS, S&LS', 'SUPERMARKETS', 'WAREHOUSING'],
+    'Agricultural': ['PASTURE OF GRAZING, DRY', 'ORCHARDS, IRRIGATED', 'IRRIGATED FARMS, MISC', 'FIELD CROPS-IRRIGATED','FIELD CROPS, DRY',
+                     'VINES AND BUSH FRUIT-IRRIGATED', 'DRY FARMS (MISC)', 'PASTURE-IRRIGATED', 'VINES AND BUSH FRUIT-IRRIGATED'],
+    'Miscellaneous': ['VACANT', 'RECREATIONAL OPEN (MISC)', 'NURSERIES,GREENHOUSES', 'MISCELLANEOUS', 'BEACHES, SAND DUNES',
+                      'PARKS', 'INDUSTRIAL, MISC',  'INSTITUTIONAL (MISC)', 'GOLF COURSES',
+                      'HIGHWAYS AND STREETS', 'RIVERS AND LAKES', 'FLOWERS', 'INDUSTRIAL CONDOS,PUDS', 'OPEN STORAGE, BULK PLANT',
+                      'CLUBS, LODGE HALLS', 'PROFESSIONAL BUILDINGS', 'MORTUARIES,CEMETERIES,MAUSOLEUMS', 
+                      'CAMPS, CABINS', 'REST HOMES', 'HORSES', 'RACE TRACKS, RIDING STABLES', 'WHOLESALE LAUNDRY', 'LUMBER YARDS, MILLS',
+                      'ORCHARDS', 'DAY CARE', 'RECREATION', 'PACKING PLANTS', 'DANCE HALLS', 'OTHER FOOD PROCESSING, BAKERIES',
+                      'BED AND BREAKFAST', 'TRUCK CROPS-IRRIGATED', 'VINEYARDS', 'AUDITORIUMS, STADIUMS', 'TREE FARMS', 'BOWLING ALLEYS',
+                      'HEAVY INDUSTRY', 'POULTRY', 'SHOPPING CENTERS (REGIONAL)', 'DRIVE-IN THEATRES', 'CHURCHES, RECTORY', 'PARKING LOTS']
+}
+
+# %%
+# Assign categories to each land use type
+def assign_category(landuse):
+    for category, types in categories.items():
+        if landuse in types:
+            return category
+    return 'Null'
+
+# %%
+df['Category'] = df['LandUse'].apply(assign_category)
+df
+
+# %%
+# Apply the function to create a new category column in the original GeoDataFrame
+gdf['Category'] = gdf['LandUse'].apply(assign_category)
+
+
+
+# %%
+#output_filepath = r"C:\Users\bsf31\Documents\post-meds\data\signal\built_env\parcel\parcels_rwmp_co_category.gpkg"
+#gdf.to_file(output_filepath, driver='GPKG')
+
+# %%
+crit_infra = gdf[gdf['Category']=='Critical Infrastructure']
+
+# %%
+crit_infra_no_geom = crit_infra.drop(columns='geometry')
+
+
+# %%
+crit_infra_no_geom
+
+# %%
+category_counts = df.groupby('Category')['Count'].sum()
+
+category_counts
+
+# %%
+# Convert the Series to a DataFrame
+category_counts_df = category_counts.reset_index()
+category_counts_df.columns = ['Category', 'Count']
+
+
+# %%
+fig = df2img.plot_dataframe(
+    category_counts_df,
+    print_index = False,
+    title=dict(
+        font_color="black",
+        font_family="Times New Roman",
+        font_size=25,
+        text="Category Counts",
+    ),
+    tbl_header=dict(
+        align="right",
+        font_color="black",
+        font_size=20,
+        line_color="darkslategray",
+    ),
+    tbl_cells=dict(
+        align="right",
+        line_color="darkslategray",
+    ),
+    row_fill_color=("#ffffff", "#d7d8d6"),
+    fig_size=(400, 200),
+)
+
+df2img.save_dataframe(fig=fig, filename="category_counts.png")
+
+# %%
+# Convert the Series to a DataFrame
+category_data = category_counts.reset_index()
+category_data.columns = ['Category', 'Count']
+
+# Create a bar plot using seaborn.catplot
+g = sns.catplot(x='Count', y='Category', kind='bar', data=category_data, palette='coolwarm', hue = 'Category', legend= False, height=8, aspect=1.5)
+g.set_yticklabels(rotation=45, horizontalalignment='right')  # Rotate labels to avoid overlapping
+g.fig.suptitle('Sum of Counts by Category')  # Title for the plot
+
+plt.show()
+
+
+# %%
+# Filter the DataFrame for only 'Critical Infrastructure' category
+critical_infrastructure_df = df[df['Category'] == 'Critical Infrastructure']
+
+# Sort the data by count for better visualization
+critical_infrastructure_df = critical_infrastructure_df.sort_values('Count', ascending=False)
+critical_infrastructure_df
+
+# %%
+fig = df2img.plot_dataframe(
+    critical_infrastructure_df,
+    print_index = False,
+    title=dict(
+        font_family="Times New Roman",
+        font_color = 'black',
+        font_size=25,
+        text="Category Counts",
+    ),
+    tbl_header=dict(
+        align="right",
+
+        font_size=20,
+        line_color="darkslategray",
+    ),
+    tbl_cells=dict(
+        align="right",
+        line_color="darkslategray",
+    ),
+    row_fill_color=("#ffffff", "#d7d8d6"),
+    fig_size=(1000,350),
+)
+
+df2img.save_dataframe(fig=fig, filename="critical_infrastructure.png")
+
+# %%
+
+
+plt.figure(figsize=(12, 8))
+ax = sns.barplot(x='Count', y='LandUse', data=critical_infrastructure_df, palette='coolwarm', hue='LandUse', legend = False)
+# Iterate over all containers and label each bar
+for container in ax.containers:
+    ax.bar_label(container, label_type='edge', padding=3, fontsize=10)
+plt.title('Counts of Critical Infrastructure Land Use Types')
+plt.xlabel('Count')
+plt.yticks(rotation=45)
+plt.ylabel('Land Use')
+plt.show()
+
+
+# %%
+# Filter the DataFrame for only 'Critical Infrastructure' category
+Residential_df = df[df['Category'] == 'Residential']
+
+# Sort the data by count for better visualization
+Residential_df = Residential_df.sort_values('Count', ascending=False)
+Residential_df
+
+# %%
+fig = df2img.plot_dataframe(
+    Residential_df,
+    print_index = False,
+    title=dict(
+        font_family="Times New Roman",
+        font_color = 'black',
+        font_size=25,
+        text="Category Counts",
+    ),
+    tbl_header=dict(
+        align="right",
+
+        font_size=20,
+        line_color="darkslategray",
+    ),
+    tbl_cells=dict(
+        align="right",
+        line_color="darkslategray",
+    ),
+    row_fill_color=("#ffffff", "#d7d8d6"),
+    fig_size=(1000,300),
+)
+
+df2img.save_dataframe(fig=fig, filename="Residential_df.png")
+
+# %%
+
+plt.figure(figsize=(14, 9))
+ax = sns.barplot(x='Count', y='LandUse', data=Residential_df, palette='coolwarm', hue='LandUse', legend = False)
+# Iterate over all containers and label each bar
+for container in ax.containers:
+    ax.bar_label(container, label_type='edge', padding=3, fontsize=10)
+plt.title('Counts of Residential Land Use Types')
+plt.xlabel('Count')
+plt.yticks(rotation=45)
+plt.ylabel('Land Use')
+plt.show()
+
+# %%
+# Filter the DataFrame for only 'Critical Infrastructure' category
+Commercial_df = df[df['Category'] == 'Commercial']
+
+# Sort the data by count for better visualization
+Commercial_df = Commercial_df.sort_values('Count', ascending=False)
+Commercial_df
+
+# %%
+fig = df2img.plot_dataframe(
+    Commercial_df,
+    print_index = False,
+    title=dict(
+        font_family="Times New Roman",
+        font_color = 'black',
+        font_size=25,
+        text="Category Counts",
+    ),
+    tbl_header=dict(
+        align="right",
+
+        font_size=20,
+        line_color="darkslategray",
+    ),
+    tbl_cells=dict(
+        align="right",
+        line_color="darkslategray",
+    ),
+    row_fill_color=("#ffffff", "#d7d8d6"),
+    fig_size=(1000,375),
+)
+
+df2img.save_dataframe(fig=fig, filename="Commercial.png")
+
+# %%
+
+plt.figure(figsize=(12, 8))
+ax = sns.barplot(x='Count', y='LandUse', data=Commercial_df, palette='coolwarm', hue='LandUse', legend = False)
+# Iterate over all containers and label each bar
+for container in ax.containers:
+    ax.bar_label(container, label_type='edge', padding=3, fontsize=10)
+plt.title('Counts of Commercial Land Use Types')
+plt.xlabel('Count')
+plt.yticks(rotation=45)
+plt.ylabel('Land Use')
+plt.show()
+
+# %%
+# Filter the DataFrame for only 'Critical Infrastructure' category
+Agricultural_df = df[df['Category'] == 'Agricultural']
+
+# Sort the data by count for better visualization
+Agricultural_df = Agricultural_df.sort_values('Count', ascending=False)
+Agricultural_df
+
+# %%
+fig = df2img.plot_dataframe(
+    Agricultural_df,
+    print_index = False,
+    title=dict(
+        font_family="Times New Roman",
+        font_color = 'black',
+        font_size=25,
+        text="Category Counts",
+    ),
+    tbl_header=dict(
+        align="right",
+
+        font_size=20,
+        line_color="darkslategray",
+    ),
+    tbl_cells=dict(
+        align="right",
+        line_color="darkslategray",
+    ),
+    row_fill_color=("#ffffff", "#d7d8d6"),
+    fig_size=(1000,275),
+)
+
+df2img.save_dataframe(fig=fig, filename="Agricultural.png")
+
+# %%
+
+plt.figure(figsize=(12, 8))
+ax = sns.barplot(x='Count', y='LandUse', data=Agricultural_df, palette='coolwarm', hue='LandUse', legend = False)
+# Iterate over all containers and label each bar
+for container in ax.containers:
+    ax.bar_label(container, label_type='edge', padding=3, fontsize=10)
+plt.title('Counts of Commercial Land Use Types')
+plt.xlabel('Count')
+plt.yticks(rotation=45)
+plt.ylabel('Land Use')
+plt.show()
+
+# %%
+# Filter the DataFrame for only 'Critical Infrastructure' category
+Miscellaneous_df = df[df['Category'] == 'Miscellaneous']
+
+# Sort the data by count for better visualization
+Miscellaneous_df = Miscellaneous_df.sort_values('Count', ascending=False)
+Miscellaneous_df
+
+# %%
+fig = df2img.plot_dataframe(
+    Miscellaneous_df,
+    print_index = False,
+    title=dict(
+        font_family="Times New Roman",
+        font_color = 'black',
+        font_size=25,
+        text="Category Counts",
+    ),
+    tbl_header=dict(
+        align="right",
+
+        font_size=20,
+        line_color="darkslategray",
+    ),
+    tbl_cells=dict(
+        align="right",
+        line_color="darkslategray",
+    ),
+    row_fill_color=("#ffffff", "#d7d8d6"),
+    fig_size=(1000,1000),
+)
+
+df2img.save_dataframe(fig=fig, filename="Miscellaneous.png")
+
+# %%
+# Assuming Miscellaneous_df is sorted by 'Count'
+half_size = len(Miscellaneous_df) // 2  # Integer division to find the midpoint
+
+# Split the DataFrame into two parts
+Miscellaneous_df_1 = Miscellaneous_df.iloc[:half_size]
+Miscellaneous_df_2 = Miscellaneous_df.iloc[half_size:]
+
+# Plot the first half
+plt.figure(figsize=(12, 8))
+ax = sns.barplot(x='Count', y='LandUse', data=Miscellaneous_df_1, palette='coolwarm', hue = 'LandUse')
+# Iterate over all containers and label each bar
+for container in ax.containers:
+    ax.bar_label(container, label_type='edge', padding=3, fontsize=10)
+ax.set_title('Counts of Commercial Land Use Types (Part 1)')
+plt.xlabel('Count')
+plt.ylabel('Land Use')
+plt.show()
+
+
+
+
+# %%
+# Plot the second half
+plt.figure(figsize=(12, 8))
+ax = sns.barplot(x='Count', y='LandUse', data=Miscellaneous_df_2, palette='coolwarm', hue= 'LandUse')
+# Iterate over all containers and label each bar
+for container in ax.containers:
+    ax.bar_label(container, label_type='edge', padding=3, fontsize=10)
+ax.set_title('Counts of Commercial Land Use Types (Part 2)')
+plt.xlabel('Count')
+plt.ylabel('Land Use')
+plt.show()
+
+# %%
+# 2. Pie Chart
+plt.figure(figsize=(10, 8))
+explode = [0.1 if count == category_counts_df['Count'].max() else 0 for count in category_counts_df['Count']]
+plt.pie(category_counts_df['Count'], labels=category_counts_df['Category'], autopct='%1.1f%%', startangle=140, colors=sns.color_palette('coolwarm'), explode=explode, shadow=True)
+plt.title('Proportion of Each Land Use Type')
+plt.show()
+
+
+
