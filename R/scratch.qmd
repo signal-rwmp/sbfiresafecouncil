@@ -9,7 +9,7 @@ editor: visual
 #| warning: false
 
 # Load Libraries
-libraries <- c("janitor", "tidyverse", "sf", "here", "shiny")
+libraries <- c("janitor", "tidyverse", "sf", "here", "shiny", 'DT')
 lapply(libraries, function(x) {
     if (!require(x, character.only = TRUE)) {
         install.packages(x)
@@ -61,7 +61,7 @@ for (folder in subfolders) {
   # Read each shapefile and assign to a variable
   for (shapefile in shapefiles) {
     var_name <- create_var_name(shapefile)
-    assign(var_name, read_shapefile_and_check_crs(shapefile))
+    assign(var_name, read_shapefile_and_check_crs(shapefile), envir = .GlobalEnv)
     created_variables <- c(created_variables, var_name)
   }
 }
@@ -76,427 +76,376 @@ created_variables
 ```
 
 ```{r}
-# RShiny
-
-# UI
-ui <- fluidPage(
-    titlePanel("Shapefile Column Selector"),
-    sidebarLayout(
-        sidebarPanel(
-            selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
-            uiOutput("column_selector")
-        ),
-        mainPanel(
-            tableOutput("selected_data")
-        )
-    )
-)
-
-# Server logic
-server <- function(input, output, session) {
-    
-    # Update column selector based on selected shapefile
-    output$column_selector <- renderUI({
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-        checkboxGroupInput("columns", "Select Columns:", choices = names(shapefile))
-    })
-
-    # Observe changes in the selected shapefile and update available columns
-    observe({
-        shapefile <- get(input$shapefile)
-        updateCheckboxGroupInput(session, "columns", 
-                                 choices = names(shapefile), selected = NULL)
-    })
-
-    # Render the table based on selected columns
-    output$selected_data <- renderTable({
-        req(input$shapefile, input$columns)
-        shapefile <- get(input$shapefile)
-        
-        # Handle spatial data (sf objects) by converting to a regular data frame
-        if ("sf" %in% class(shapefile)) {
-            shapefile <- as.data.frame(shapefile)
-        }
-        
-        # Safely select columns, avoiding errors if columns don't exist
-        safe_cols <- intersect(input$columns, names(shapefile))
-        shapefile[, safe_cols, drop = FALSE]
-    }, error = function(e) { 
-        # Handle errors in table rendering
-        "Error in rendering table"
-    })
-}
-
-# Run the app
-shinyApp(ui, server)
-
-```
-
-```{r}
-
-# Define the UI
-ui <- fluidPage(
-    titlePanel("Shapefile Data Processor"),
-    sidebarLayout(
-        sidebarPanel(
-            selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
-            uiOutput("column_selector"),
-            textInput("agency", "Agency", ""),
-            textInput("dtAcqrd", "Date Acquired", ""),
-            textInput("tfDays", "Timeframe (Days)", ""),
-            textInput("prjctNm", "Project Name", ""),
-            textInput("TrtmnT", "Treatment", ""),
-            textInput("dtComplt", "Date Completed", ""),
-            textInput("other", "Other", ""),
-            actionButton("process", "Process Shapefile")
-        ),
-        mainPanel(
-            tableOutput("processed_data")
-        )
-    )
-)
-
-# Define server logic
-server <- function(input, output, session) {
-    
-    # Reactive value to store the cumulative dataset
-    cumulative_data <- reactiveVal(data.frame())
-
-    # Update column selector based on selected shapefile
-    output$column_selector <- renderUI({
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-        checkboxGroupInput("columns", "Select Columns:", choices = names(shapefile))
-    })
-
-    # Process the shapefile when the button is clicked
-    observeEvent(input$process, {
-        req(input$shapefile, input$columns)
-        shapefile <- get(input$shapefile) %>% select(all_of(input$columns))
-
-        # Create a new tibble with user inputs and selected columns
-        new_data <- tibble(
-            OrgnlSN = input$shapefile,
-            Agency = input$agency,
-            DtAcqrd = input$dtAcqrd,
-            Acreage = shapefile$Acres,  # Assuming 'Acres' is a common column
-            TF_DYS = input$tfDays,
-            PrjctNm = input$prjctNm,
-            DtComplt = input$dtComplt,
-            Other = input$other
-        )
-
-        # Append to the cumulative dataset
-        cumulative_data(bind_rows(cumulative_data(), new_data))
-    })
-
-    # Display the processed data
-    output$processed_data <- renderTable({
-        cumulative_data()
-    })
-}
-
-# Run the app
-shinyApp(ui, server)
-```
-
-```{r}
-standard_columns <- c( "Agency", "DtAcqrd", "Acreage", "TF(DYS)", "PrjctNm", "DtComplt", "Other")
-
-ui <- fluidPage(
-    titlePanel("Shapefile Data Processor"),
-    sidebarLayout(
-        sidebarPanel(
-            selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
-            uiOutput("column_mapping_ui"),
-            actionButton("process", "Process Shapefile")
-        ),
-        mainPanel(
-            tableOutput("processed_data")
-        )
-    )
-)
-
-server <- function(input, output, session) {
-    
-    # Reactive value to store the cumulative dataset
-    cumulative_data <- reactiveVal(data.frame())
-
-    # Update column mapping UI based on selected shapefile
-    output$column_mapping_ui <- renderUI({
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-        shapefile_cols <- names(shapefile)
-
-        # Create UI elements for each standard column
-        map_ui <- lapply(standard_columns, function(col) {
-            fluidRow(
-                column(6, selectInput(paste0("select_", col), 
-                                      label = paste("Map", col, "to:"), 
-                                      choices = c("Enter value", shapefile_cols))),
-                column(6, textInput(paste0("text_", col), 
-                                    label = paste("Or enter value for", col), 
-                                    value = ""))
-            )
-        })
-        do.call(tagList, map_ui)
-    })
-
-    # Process the shapefile when the button is clicked
-    observeEvent(input$process, {
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-
-        # Function to get value or mapped column
-        get_value_or_column <- function(col_name, shapefile) {
-            select_input <- input[[paste0("select_", col_name)]]
-            text_input <- input[[paste0("text_", col_name)]]
-            
-            if(select_input != "Enter value") {
-                return(shapefile[[select_input]])
-            } else {
-                return(rep(text_input, nrow(shapefile)))
-            }
-        }
-
-        # Create a new tibble with user inputs and selected columns
-        new_data <- tibble(
-            OrgnlSN = input$shapefile,
-            Agency = get_value_or_column("Agency", shapefile),
-            DtAcqrd = get_value_or_column("DtAcqrd", shapefile),
-            Acreage = get_value_or_column("Acreage", shapefile),
-            `TF(DYS)` = get_value_or_column("TF(DYS)", shapefile),
-            PrjctNm = get_value_or_column("PrjctNm", shapefile),
-            DtComplt = get_value_or_column("DtComplt", shapefile),
-            Other = get_value_or_column("Other", shapefile)
-        )
-
-        # Append to the cumulative dataset
-        cumulative_data(bind_rows(cumulative_data(), new_data))
-    })
-
-    # Display the processed data
-    output$processed_data <- renderTable({
-        cumulative_data()
-    })
-}
-
-# Run the app
-shinyApp(ui, server)
-
-```
-
-```{r}
-standard_columns <- c( "Agency", "DtAcqrd", "Acreage", "TF(DYS)", "PrjctNm", "DtComplt", "Other")
-
-ui <- fluidPage(
-    titlePanel("Shapefile Data Processor"),
-    sidebarLayout(
-        sidebarPanel(
-            selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
-            uiOutput("column_mapping_ui"),
-            actionButton("process", "Process Shapefile")
-        ),
-        mainPanel(
-            tableOutput("data_preview"),
-            tableOutput("processed_data")
-        )
-    )
-)
-
-server <- function(input, output, session) {
-    
-    # Reactive value to store the cumulative dataset
-    cumulative_data <- reactiveVal(data.frame())
-
-    # Preview the data of the selected shapefile
-    output$data_preview <- renderTable({
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-        head(shapefile)  # Show first few rows
-    })
-
-    # Update column mapping UI based on selected shapefile
-    output$column_mapping_ui <- renderUI({
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-        shapefile_cols <- c("Enter value manually", names(shapefile))
-
-        # Create UI elements for each standard column
-        map_ui <- lapply(standard_columns, function(col) {
-            selectInput(paste0("map_", col), 
-                        label = paste("Map", col, "to:"), 
-                        choices = shapefile_cols)
-        })
-        do.call(tagList, map_ui)
-    })
-
-    # Process the shapefile when the button is clicked
-    observeEvent(input$process, {
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-
-        # Function to get value or mapped column
-        get_value_or_column <- function(col_name, shapefile) {
-            map_input <- input[[paste0("map_", col_name)]]
-            
-            if(map_input == "Enter value manually") {
-                return(rep(NA, nrow(shapefile)))  # Replace with user input if needed
-            } else {
-                return(shapefile[[map_input]])
-            }
-        }
-
-        # Create a new tibble with user inputs and selected columns
-        new_data <- tibble(
-            OrgnlSN = input$shapefile,
-            Agency = get_value_or_column("Agency", shapefile),
-            DtAcqrd = get_value_or_column("DtAcqrd", shapefile),
-            Acreage = get_value_or_column("Acreage", shapefile),
-            `TF(DYS)` = get_value_or_column("TF(DYS)", shapefile),
-            PrjctNm = get_value_or_column("PrjctNm", shapefile),
-            DtComplt = get_value_or_column("DtComplt", shapefile),
-            Other = get_value_or_column("Other", shapefile)
-        )
-
-        # Append to the cumulative dataset
-        try({
-            cumulative_data(bind_rows(cumulative_data(), new_data))
-        }, silent = TRUE)
-    })
-
-    # Display the processed data
-    output$processed_data <- renderTable({
-        cumulative_data()
-    })
-}
-
-# Run the app
-shinyApp(ui, server)
-
-```
-
-```{r}
-ui <- fluidPage(
-    titlePanel("Shapefile Data Processor"),
-    sidebarLayout(
-        sidebarPanel(
-            selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
-            uiOutput("column_mapping_ui"),
-            actionButton("process", "Process Shapefile"),
-            actionButton("create_shapefile", "Create New Shapefile")
-        ),
-        mainPanel(
-            tableOutput("data_preview"),
-            tableOutput("processed_data")
-        )
-    )
-)
-server <- function(input, output, session) {
-    
-    # Reactive value to store the cumulative dataset
-    cumulative_data <- reactiveVal(data.frame())
-
-    # Preview the data of the selected shapefile, excluding the geometry column
-    output$data_preview <- renderTable({
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-        if ("sf" %in% class(shapefile)) {
-            shapefile <- as.data.frame(shapefile)
-        }
-        head(shapefile[setdiff(names(shapefile), "geometry")])
-    })
-
-    # Update column mapping UI based on selected shapefile
-    output$column_mapping_ui <- renderUI({
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-        shapefile_cols <- c("Enter value manually", setdiff(names(shapefile), "geometry"))
-
-        # Create UI elements for each standard column
-        map_ui <- lapply(standard_columns, function(col) {
-            selectInput(paste0("map_", col), 
-                        label = paste("Map", col, "to:"), 
-                        choices = shapefile_cols)
-        })
-        do.call(tagList, map_ui)
-    })
-
-    # Process the shapefile when the button is clicked
-    observeEvent(input$process, {
-        req(input$shapefile)
-        shapefile <- get(input$shapefile)
-
-        # Function to get value or mapped column
-        get_value_or_column <- function(col_name, shapefile) {
-            map_input <- input[[paste0("map_", col_name)]]
-            
-            if(map_input == "Enter value manually") {
-                return(rep(NA, nrow(shapefile)))  # Replace with user input if needed
-            } else {
-                return(shapefile[[map_input]])
-            }
-        }
-
-        # Create a new tibble with user inputs and selected columns
-        new_data <- tibble(
-            OrgnlSN = input$shapefile,
-            Agency = get_value_or_column("Agency", shapefile),
-            DtAcqrd = get_value_or_column("DtAcqrd", shapefile),
-            Acreage = get_value_or_column("Acreage", shapefile),
-            `TF(DYS)` = get_value_or_column("TF(DYS)", shapefile),
-            PrjctNm = get_value_or_column("PrjctNm", shapefile),
-            DtComplt = get_value_or_column("DtComplt", shapefile),
-            Other = get_value_or_column("Other", shapefile)
-        )
-
-        # Append to the cumulative dataset
-        try({
-            cumulative_data(bind_rows(cumulative_data(), new_data))
-        }, silent = TRUE)
-    })
-
-    # Handle the creation of a new shapefile
-    observeEvent(input$create_shapefile, {
-        # Logic to create a new shapefile based on the processed data
-        # This will be implemented as per your requirements
-    })
-
-    # Display the processed data
-    output$processed_data <- renderTable({
-        cumulative_data()
-    })
-}
-
-# Run the app
-shinyApp(ui, server)
-
-```
-
-```{r}
 # Define the standard columns
 standard_columns <- c("Agency", "DtAcqrd", "Acreage", "TF(DYS)", "PrjctNm", "TrtmntT", "DtComplt", "Other")
 
 # UI with Dynamic Text Inputs
 ui <- fluidPage(
     titlePanel("Shapefile Data Processor"),
-    sidebarLayout(
-        sidebarPanel(
-            selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
-            uiOutput("column_mapping_ui"),
-            actionButton("process", "Process Shapefile"),
-            actionButton("create_shapefile", "Create New Shapefile")
-        ),
-        mainPanel(
-            tableOutput("data_preview"),
-            tableOutput("processed_data")
+    # Conditional Panel for Login
+    conditionalPanel(
+        condition = "output.showLoginPanel",
+        wellPanel(
+            textInput("user_name", "Enter your name:", ""),
+            radioButtons("action_type", "Choose action:",
+                         choices = c("Start New Shapefile" = "new", "Update Existing Shapefile" = "update")),
+            conditionalPanel(
+                condition = "input.action_type == 'new'",
+                textInput("new_shapefile_name", "Enter New Shapefile Name:")
+            ),
+            conditionalPanel(
+                condition = "input.action_type == 'update'",
+                selectInput("shapefile_to_update", "Select Shapefile to Update:", choices = NULL),
+                selectInput("update_with_shapefile", "Update With Shapefile:", choices = NULL),
+                uiOutput("orgnlSN_selector")
+            ),
+            actionButton("login", "Login", disabled = TRUE)
+        )
+    ),
+    # New Shapefile Modify Values Page
+    conditionalPanel(
+        condition = "input.action_type == 'new' && input.login",
+        sidebarLayout(
+            sidebarPanel(
+                selectInput("shapefile", "Select a Shapefile:", choices = NULL),
+                uiOutput("selectedUI"),
+                selectInput("columnToModify", "Select Column to Modify:", choices = NULL),
+                uiOutput("uniqueValuesUI"),
+                uiOutput("newValueUI"),
+                actionButton("updateColumnValue", "Update Column Value"),
+                actionButton("columnMapping", "Next Page"),
+                uiOutput("info"),
+                tableOutput("changeLogTable")
+            ),
+            mainPanel(
+                DTOutput("dataPreview")
+            )
         )
     )
 )
 
 server <- function(input, output, session) {
+    login_status <- reactiveVal(FALSE)
+    new_shapefile_name <- reactiveVal(NULL)
+    selected_shapefile <- reactiveVal(NULL)
+    selected_cell_value <- reactiveVal(NULL)
+    # Initialize a reactive value to store changes
+    change_log <- reactiveVal(data.frame(
+        Type = character(),
+        Column = character(),
+        Row = integer(),
+        OldValue = character(),
+        NewValue = character(),
+        stringsAsFactors = FALSE
+    ))
     
+    
+    
+    
+    
+    output$showLoginPanel <- reactive({ !login_status() })
+    outputOptions(output, "showLoginPanel", suspendWhenHidden = FALSE)
+    
+    observe({
+        if (!is.null(input$action_type) && input$action_type == "new") {
+            login_disabled <- is.null(input$user_name) || is.null(input$new_shapefile_name) ||
+                nchar(input$user_name) == 0 || nchar(input$new_shapefile_name) == 0
+        } else {
+            login_disabled <- is.null(input$user_name) || nchar(input$user_name) == 0
+        }
+        updateActionButton(session, "login", disabled = login_disabled)
+    })
+    
+    observeEvent(input$login, {
+        req(input$user_name)
+        if (input$action_type == "new") {
+            req(input$new_shapefile_name)
+            new_shapefile_name(input$new_shapefile_name)
+        }
+        login_status(TRUE)
+    })
+    
+    # Populate shapefile dropdown
+    observe({
+        if (login_status() && input$action_type == "new") {
+            updateSelectInput(session, "shapefile", choices = created_variables)
+        }
+    })
+    
+    observeEvent(input$shapefile, {
+        selected_shapefile(input$shapefile)
+    })
+    
+    # Preview shapefile data
+    output$dataPreview <- renderDT(server = FALSE,
+                                   {
+        req(selected_shapefile())
+        shapefile <- get(selected_shapefile(), envir = .GlobalEnv)
+        
+        datatable(
+            shapefile,
+            extensions = c('Scroller'),
+            options = list(
+               # select = list(style = 'single', items = 'cell'),
+                #dom = 'Bfrtip',
+                #rowId = 'auto',
+                #buttons = c('selectNone', 'selectColumns', 'selectCells'),
+                scroller = TRUE,
+                scrollY = 800,
+                deferRender = TRUE,
+                info = TRUE
+            ),
+            selection = list(mode = 'single', target = 'cell'),
+            editable =  'cell',
+            
+        )
+    })
+    
+    # Populate column dropdown
+    observe({
+        req(selected_shapefile())
+        updateSelectInput(session, "columnToModify", choices = names(get(selected_shapefile(), envir = .GlobalEnv)))
+    })
+    
+    # Check unique values and display dropdown
+    output$uniqueValuesUI <- renderUI({
+        req(input$columnToModify)
+        shapefile <- get(selected_shapefile(), envir = .GlobalEnv)
+        unique_values <- unique(shapefile[[input$columnToModify]])
+        if (length(unique_values) <= 10) {
+            selectInput("valueToModify", "Select Value to Modify:", choices = unique_values)
+        } else {
+            p("The selected column has more than 10 unique values. Modification is not allowed.")
+        }
+    })
+    
+    # Display input box for new value
+    output$newValueUI <- renderUI({
+        req(input$valueToModify)
+        textInput("newValue", "Enter New Value:")
+    })
+    
+    # Update column value in the data
+    observeEvent(input$updateColumnValue, {
+        req(selected_shapefile(), input$columnToModify, input$valueToModify, input$newValue)
+        shapefile <- get(selected_shapefile(), envir = .GlobalEnv)
+        indices <- which(shapefile[[input$columnToModify]] == input$valueToModify)
+        old_values <- unique(shapefile[[input$columnToModify]][indices])  # Capture unique old values
+        shapefile[[input$columnToModify]][shapefile[[input$columnToModify]] == input$valueToModify] <- input$newValue
+        assign(selected_shapefile(), shapefile, envir = .GlobalEnv)
+        selected_shapefile(selected_shapefile())  # Trigger reactivity
+        
+        
+        ## Log the change
+        if (length(old_values) <= 10) {  # Only include old values detail if they are few
+            old_value_summary <- paste(old_values, collapse = ", ")
+        } else {
+            old_value_summary <- paste(length(old_values), "values changed")
+        }
+        
+        new_entry <- data.frame(
+            Type = "Column",
+            Column = input$columnToModify,
+            RowsAffected = length(indices),
+            Row = NA,
+            OldValue = old_value_summary,
+            NewValue = input$newValue,
+            stringsAsFactors = FALSE
+        )
+        change_log(rbind(change_log(), new_entry))  # Append new entry to the log
+    })
+    
+    
+    
+    observeEvent(input$dataPreview_cell_clicked, {
+      cell_info <- input$dataPreview_cell_clicked
+      
+      if (!is.null(cell_info$value)) {
+        value <- as.character(cell_info$value)
+        selected_cell_value(value)  # Update the reactive variable
+      }
+    })
+    
+    #  Display selected cell value or unique values from selected column
+
+    output$info <- renderUI({
+      req(input$dataPreview_cells_selected)
+      p(paste("Selected Cell Value:", selected_cell_value()))
+
+    })
+
+    #
+    # Update selected cell value with new value to shapefile
+    observeEvent(input$dataPreview_cell_edit, {
+    info <- input$dataPreview_cell_edit
+    if (is.null(info) || is.null(info$value)) return()  # Exit if no edit info
+
+    # Retrieve the current shapefile data
+    shapefile <- get(selected_shapefile(), envir = .GlobalEnv)
+    if (!"sf" %in% class(shapefile)) return()  # Check if it's an sf object
+
+    try({
+        # Adjust for zero-based index from DT and apply the new value
+        row_index <- info$row   
+        column_index <- info$col 
+        old_value <- shapefile[row_index, column_index, drop = TRUE]
+        shapefile[row_index, column_index] <- as.character(info$value)  # Convert to character if needed
+
+        # Update the global environment and reactive value
+        assign(selected_shapefile(), shapefile, envir = .GlobalEnv)
+        selected_shapefile(selected_shapefile())  # Refresh reactive variable to update UI
+    }, silent = TRUE)
+
+      
+
+    # Log changes
+    new_entry <- data.frame(
+        Type = "Cell",
+        Column = names(shapefile)[column_index],
+        RowsAffected = NA,
+        Row = row_index,
+        OldValue = as.character(old_value),
+        NewValue = as.character(info$value),
+        stringsAsFactors = FALSE
+    )
+    change_log(rbind(change_log(), new_entry))  # Append new entry to the log
+
+  })
+    
+    
+  output$changeLogTable <- renderTable({
+      change_log()  # Render the change log as a table
+  })
+}
+
+# Run the app
+shinyApp(ui, server)
+```
+
+```{r}
+
+
+# Define the standard columns
+standard_columns <- c("Agency", "DtAcqrd", "Acreage", "TF(DYS)", "PrjctNm", "TrtmntT", "DtComplt", "Other")
+
+# UI with Dynamic Text Inputs
+ui <- fluidPage(
+    titlePanel("Shapefile Data Processor"),
+    # Conditional Panel for Login
+    conditionalPanel(
+        condition = "output.showLoginPanel",
+        wellPanel(
+            textInput("user_name", "Enter your name:", ""),
+            radioButtons("action_type", "Choose action:",
+                         choices = c("Start New Shapefile" = "new", "Update Existing Shapefile" = "update")),
+            conditionalPanel(
+                condition = "input.action_type == 'new'",
+                textInput("new_shapefile_name", "Enter New Shapefile Name:")
+            ),
+            conditionalPanel(
+                condition = "input.action_type == 'update'",
+                selectInput("shapefile_to_update", "Select Shapefile to Update:", choices = NULL),
+                selectInput("update_with_shapefile", "Update With Shapefile:", choices = NULL),
+                uiOutput("orgnlSN_selector")
+            ),
+            actionButton("login", "Login")
+        )
+    ),
+    # Main Application Panel, shown only after login
+    conditionalPanel(
+        condition = "!output.showLoginPanel",
+        sidebarLayout(
+            sidebarPanel(
+                uiOutput("shapefile_selector"),
+                uiOutput("modifyOptions"),
+                actionButton("modifyData", "Modify Data"),
+                actionButton("create_shapefile", "Create New Shapefile")
+            ),
+            mainPanel(
+                DTOutput("dataView")
+            )
+        )
+    )
+)
+
+
+server <- function(input, output, session) {
+    login_status <- reactiveVal(FALSE)
+    updating_shapefile <- reactiveVal(FALSE)
+    new_shapefile_name <- reactiveVal(NULL)
+
+    output$showLoginPanel <- reactive({ !login_status() })
+    outputOptions(output, "showLoginPanel", suspendWhenHidden = FALSE)
+    
+    # Dynamically load shapefile choices excluding the one being updated
+    observe({
+        updateSelectInput(session, "shapefile_to_update", choices = created_variables)
+        updateSelectInput(session, "update_with_shapefile", choices = setdiff(created_variables, input$shapefile_to_update))
+    })
+    
+    output$orgnlSN_selector <- renderUI({
+    req(input$shapefile_to_update)
+    
+    # Get the selected shapefile object
+    shapefile <- get(input$shapefile_to_update, envir = .GlobalEnv)
+    
+    if ("OrgnlSN" %in% names(shapefile)) {
+        # If the 'OrgnlSN' column exists in the selected shapefile
+        orgnlSN_choices <- unique(shapefile$OrgnlSN)
+    } else {
+        # If the 'OrgnlSN' column doesn't exist in the selected shapefile
+        orgnlSN_choices <- character(0)
+    }
+    
+    # Check if 'OrgnlSN' exists in other shapefiles
+    other_shapefiles <- setdiff(created_variables, input$shapefile_to_update)
+    for (sf_name in other_shapefiles) {
+        sf_object <- get(sf_name, envir = .GlobalEnv)
+        if ("OrgnlSN" %in% names(sf_object)) {
+            orgnlSN_choices <- union(orgnlSN_choices, unique(sf_object$OrgnlSN))
+        }
+    }
+    
+    if (length(orgnlSN_choices) > 0) {
+        # If 'OrgnlSN' values are found in any shapefile
+        selectInput("OrgnlSN", "Select 'OrgnlSN' to Update:", choices = orgnlSN_choices)
+    } else {
+        # If 'OrgnlSN' doesn't exist in any shapefile
+        selectInput("OrgnlSN", "Select 'OrgnlSN' to Update:", choices = character(0))
+    }}
+    )
+    
+    
+    observeEvent(input$login, {
+        req(input$user_name)
+        session$userData$user_info <- list(name = input$user_name, timestamp = Sys.time())
+        new_shapefile_name(if (input$action_type == "new") input$new_shapefile_name else NULL)
+        login_status(TRUE)
+        updating_shapefile(input$action_type == "update")
+    })
+
+    # Handling the shapefile selection for modification
+    output$shapefile_selector <- renderUI({
+      if (updating_shapefile()) {
+        selectInput("shapefile", "Select a Shapefile:", choices = created_variables)
+      }
+    })
+    
+    output$dataView <- renderDT({
+        req(input$shapefile)
+        datatable(created_variables[[input$shapefile]], options = list(pageLength = 10))
+    })
+
+    # Modify Options UI and further logic
+    # output$modifyOptions <- renderUI({
+    #     if (updating_shapefile()) {
+    #         # Additional UI elements and logic for updating an existing shapefile
+    #     }
+    #     # General modification options
+    # })
+    # 
+
+
     # Reactive value to store the cumulative dataset
     cumulative_data <- reactiveVal(data.frame())
 
@@ -520,7 +469,7 @@ server <- function(input, output, session) {
             select_id <- paste0("map_", col)
             text_id <- paste0("text_", col)
             fluidRow(
-                column(6, selectInput(select_id, label = paste("Map", col, "to:"), 
+                column(6, selectInput(select_id, label = paste("Map", col, "to:"),
                                       choices = c("Null", shapefile_cols, "Enter value manually"))),
                 column(6, uiOutput(text_id))  # Dynamic UI for text input
             )
@@ -548,7 +497,7 @@ server <- function(input, output, session) {
         get_value_or_column <- function(col_name, shapefile) {
             map_input <- input[[paste0("map_", col_name)]]
             manual_input <- input[[paste0("manual_", col_name)]]
-            
+
             if(map_input == "Enter value manually") {
                 # Use the manual input if "Enter value manually" is selected
                 return(rep(manual_input, nrow(shapefile)))
@@ -608,7 +557,7 @@ server <- function(input, output, session) {
 
         # Combine the geometries
         combined_geometry <- do.call(rbind, geometries_list)
-        
+
         # Example conversion of a boolean field to string
         processed_data$`TF(DYS)` <- as.character(processed_data$`TF(DYS)`)
         processed_data$DtComplt <- as.character(processed_data$DtComplt)
@@ -649,14 +598,15 @@ ui <- fluidPage(
             textInput("user_name", "Enter your name:", ""),
             radioButtons("action_type", "Choose action:",
                          choices = c("Start New Shapefile" = "new", "Update Existing Shapefile" = "update")),
-            # Conditional UI for entering new shapefile name or selecting an existing one
             conditionalPanel(
                 condition = "input.action_type == 'new'",
                 textInput("new_shapefile_name", "Enter New Shapefile Name:")
             ),
             conditionalPanel(
                 condition = "input.action_type == 'update'",
-                uiOutput("shapefile_update_selector")
+                selectInput("shapefile_to_update", "Select Shapefile to Update:", choices = NULL),
+                selectInput("update_with_shapefile", "Update With Shapefile:", choices = NULL),
+                uiOutput("orgnlSN_selector")
             ),
             actionButton("login", "Login")
         )
@@ -667,13 +617,12 @@ ui <- fluidPage(
         sidebarLayout(
             sidebarPanel(
                 uiOutput("shapefile_selector"),
-                uiOutput("column_mapping_ui"),
-                actionButton("process", "Process Shapefile"),
+                uiOutput("modifyOptions"),
+                actionButton("modifyData", "Modify Data"),
                 actionButton("create_shapefile", "Create New Shapefile")
             ),
             mainPanel(
-                tableOutput("data_preview"),
-                tableOutput("processed_data")
+                tableOutput("dataView")  # Using simple table display
             )
         )
     )
@@ -685,34 +634,51 @@ ui <- fluidPage(
 
 
 
+
 server <- function(input, output, session) {
     login_status <- reactiveVal(FALSE)
     updating_shapefile <- reactiveVal(FALSE)
-    new_shapefile_name <- reactiveVal(NULL)  # Store the new shapefile name
-    
-    
+    new_shapefile_name <- reactiveVal(NULL)
+
     output$showLoginPanel <- reactive({ !login_status() })
     outputOptions(output, "showLoginPanel", suspendWhenHidden = FALSE)
     
-    
-    
-    output$shapefile_update_selector <- renderUI({
-        selectInput("shapefile_to_update", "Select Shapefile to Update:", choices = created_variables)
+    # Populate the dropdowns for updating shapefiles dynamically
+    observe({
+        shapefiles <- names(created_variables)  # Assuming created_variables is a list of data.frames
+        updateSelectInput(session, "shapefile_to_update", choices = shapefiles)
+        updateSelectInput(session, "update_with_shapefile", choices = setdiff(shapefiles, input$shapefile_to_update))
     })
     
-    
+    output$orgnlSN_selector <- renderUI({
+        req(input$shapefile_to_update)
+        selectInput("orgnlSN", "Select 'OrgnlSN' to Update:", choices = unique(created_variables[[input$shapefile_to_update]]$OrgnlSN))
+    })
+
     observeEvent(input$login, {
-        req(input$user_name)  # Ensure the user name is provided before proceeding
+        req(input$user_name)
         session$userData$user_info <- list(name = input$user_name, timestamp = Sys.time())
-        new_shapefile_name(if (input$action_type == "new") input$new_shapefile_name else NULL)  # Store new shapefile name if applicable
+        new_shapefile_name(if (input$action_type == "new") input$new_shapefile_name else NULL)
         login_status(TRUE)
         updating_shapefile(input$action_type == "update")
     })
-    
+
+    # Handling the shapefile selection for modification
     output$shapefile_selector <- renderUI({
-        if (updating_shapefile() || input$action_type == "new") {
-            selectInput("shapefile", "Select a Shapefile:", choices = created_variables)
+        selectInput("shapefile", "Select a Shapefile:", choices = names(created_variables))
+    })
+
+    output$dataView <- renderTable({
+        req(input$shapefile)
+        created_variables[[input$shapefile]]
+    })
+
+    # Modify Options UI and further logic
+    output$modifyOptions <- renderUI({
+        if (updating_shapefile()) {
+            # Additional UI elements and logic for updating an existing shapefile
         }
+        # General modification options
     })
     
     
@@ -857,17 +823,570 @@ shinyApp(ui, server)
 ```
 
 ```{r}
-new_shape <-  sf::st_read("new_shapefile.gpkg")
+# # RShiny
+# 
+# # UI
+# ui <- fluidPage(
+#     titlePanel("Shapefile Column Selector"),
+#     sidebarLayout(
+#         sidebarPanel(
+#             selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
+#             uiOutput("column_selector")
+#         ),
+#         mainPanel(
+#             tableOutput("selected_data")
+#         )
+#     )
+# )
+# 
+# # Server logic
+# server <- function(input, output, session) {
+#     
+#     # Update column selector based on selected shapefile
+#     output$column_selector <- renderUI({
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+#         checkboxGroupInput("columns", "Select Columns:", choices = names(shapefile))
+#     })
+# 
+#     # Observe changes in the selected shapefile and update available columns
+#     observe({
+#         shapefile <- get(input$shapefile)
+#         updateCheckboxGroupInput(session, "columns", 
+#                                  choices = names(shapefile), selected = NULL)
+#     })
+# 
+#     # Render the table based on selected columns
+#     output$selected_data <- renderTable({
+#         req(input$shapefile, input$columns)
+#         shapefile <- get(input$shapefile)
+#         
+#         # Handle spatial data (sf objects) by converting to a regular data frame
+#         if ("sf" %in% class(shapefile)) {
+#             shapefile <- as.data.frame(shapefile)
+#         }
+#         
+#         # Safely select columns, avoiding errors if columns don't exist
+#         safe_cols <- intersect(input$columns, names(shapefile))
+#         shapefile[, safe_cols, drop = FALSE]
+#     }, error = function(e) { 
+#         # Handle errors in table rendering
+#         "Error in rendering table"
+#     })
+# }
+# 
+# # Run the app
+# shinyApp(ui, server)
+
 ```
 
 ```{r}
-ag <-  sf::st_read(here('data','Ag_Greenbelts_02182021', 'Ag_Greenbelts_02182021.shp'))
+# 
+# # Define the UI
+# ui <- fluidPage(
+#     titlePanel("Shapefile Data Processor"),
+#     sidebarLayout(
+#         sidebarPanel(
+#             selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
+#             uiOutput("column_selector"),
+#             textInput("agency", "Agency", ""),
+#             textInput("dtAcqrd", "Date Acquired", ""),
+#             textInput("tfDays", "Timeframe (Days)", ""),
+#             textInput("prjctNm", "Project Name", ""),
+#             textInput("TrtmnT", "Treatment", ""),
+#             textInput("dtComplt", "Date Completed", ""),
+#             textInput("other", "Other", ""),
+#             actionButton("process", "Process Shapefile")
+#         ),
+#         mainPanel(
+#             tableOutput("processed_data")
+#         )
+#     )
+# )
+# 
+# # Define server logic
+# server <- function(input, output, session) {
+#     
+#     # Reactive value to store the cumulative dataset
+#     cumulative_data <- reactiveVal(data.frame())
+# 
+#     # Update column selector based on selected shapefile
+#     output$column_selector <- renderUI({
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+#         checkboxGroupInput("columns", "Select Columns:", choices = names(shapefile))
+#     })
+# 
+#     # Process the shapefile when the button is clicked
+#     observeEvent(input$process, {
+#         req(input$shapefile, input$columns)
+#         shapefile <- get(input$shapefile) %>% select(all_of(input$columns))
+# 
+#         # Create a new tibble with user inputs and selected columns
+#         new_data <- tibble(
+#             OrgnlSN = input$shapefile,
+#             Agency = input$agency,
+#             DtAcqrd = input$dtAcqrd,
+#             Acreage = shapefile$Acres,  # Assuming 'Acres' is a common column
+#             TF_DYS = input$tfDays,
+#             PrjctNm = input$prjctNm,
+#             DtComplt = input$dtComplt,
+#             Other = input$other
+#         )
+# 
+#         # Append to the cumulative dataset
+#         cumulative_data(bind_rows(cumulative_data(), new_data))
+#     })
+# 
+#     # Display the processed data
+#     output$processed_data <- renderTable({
+#         cumulative_data()
+#     })
+# }
+# 
+# # Run the app
+# shinyApp(ui, server)
 ```
 
 ```{r}
-Camino_Cielo_Fuelbreak <-  sf::st_read(here('data','Camino_Cielo_Fuelbreak', 'Camino_Cielo_Fuelbreak.shp'))
+# standard_columns <- c( "Agency", "DtAcqrd", "Acreage", "TF(DYS)", "PrjctNm", "DtComplt", "Other")
+# 
+# ui <- fluidPage(
+#     titlePanel("Shapefile Data Processor"),
+#     sidebarLayout(
+#         sidebarPanel(
+#             selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
+#             uiOutput("column_mapping_ui"),
+#             actionButton("process", "Process Shapefile")
+#         ),
+#         mainPanel(
+#             tableOutput("processed_data")
+#         )
+#     )
+# )
+# 
+# server <- function(input, output, session) {
+#     
+#     # Reactive value to store the cumulative dataset
+#     cumulative_data <- reactiveVal(data.frame())
+# 
+#     # Update column mapping UI based on selected shapefile
+#     output$column_mapping_ui <- renderUI({
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+#         shapefile_cols <- names(shapefile)
+# 
+#         # Create UI elements for each standard column
+#         map_ui <- lapply(standard_columns, function(col) {
+#             fluidRow(
+#                 column(6, selectInput(paste0("select_", col), 
+#                                       label = paste("Map", col, "to:"), 
+#                                       choices = c("Enter value", shapefile_cols))),
+#                 column(6, textInput(paste0("text_", col), 
+#                                     label = paste("Or enter value for", col), 
+#                                     value = ""))
+#             )
+#         })
+#         do.call(tagList, map_ui)
+#     })
+# 
+#     # Process the shapefile when the button is clicked
+#     observeEvent(input$process, {
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+# 
+#         # Function to get value or mapped column
+#         get_value_or_column <- function(col_name, shapefile) {
+#             select_input <- input[[paste0("select_", col_name)]]
+#             text_input <- input[[paste0("text_", col_name)]]
+#             
+#             if(select_input != "Enter value") {
+#                 return(shapefile[[select_input]])
+#             } else {
+#                 return(rep(text_input, nrow(shapefile)))
+#             }
+#         }
+# 
+#         # Create a new tibble with user inputs and selected columns
+#         new_data <- tibble(
+#             OrgnlSN = input$shapefile,
+#             Agency = get_value_or_column("Agency", shapefile),
+#             DtAcqrd = get_value_or_column("DtAcqrd", shapefile),
+#             Acreage = get_value_or_column("Acreage", shapefile),
+#             `TF(DYS)` = get_value_or_column("TF(DYS)", shapefile),
+#             PrjctNm = get_value_or_column("PrjctNm", shapefile),
+#             DtComplt = get_value_or_column("DtComplt", shapefile),
+#             Other = get_value_or_column("Other", shapefile)
+#         )
+# 
+#         # Append to the cumulative dataset
+#         cumulative_data(bind_rows(cumulative_data(), new_data))
+#     })
+# 
+#     # Display the processed data
+#     output$processed_data <- renderTable({
+#         cumulative_data()
+#     })
+# }
+# 
+# # Run the app
+# shinyApp(ui, server)
+
 ```
 
 ```{r}
-LPF <-  sf::st_read(here('data','LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017', 'LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017.shp'))
+# standard_columns <- c( "Agency", "DtAcqrd", "Acreage", "TF(DYS)", "PrjctNm", "DtComplt", "Other")
+# 
+# ui <- fluidPage(
+#     titlePanel("Shapefile Data Processor"),
+#     sidebarLayout(
+#         sidebarPanel(
+#             selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
+#             uiOutput("column_mapping_ui"),
+#             actionButton("process", "Process Shapefile")
+#         ),
+#         mainPanel(
+#             tableOutput("data_preview"),
+#             tableOutput("processed_data")
+#         )
+#     )
+# )
+# 
+# server <- function(input, output, session) {
+#     
+#     # Reactive value to store the cumulative dataset
+#     cumulative_data <- reactiveVal(data.frame())
+# 
+#     # Preview the data of the selected shapefile
+#     output$data_preview <- renderTable({
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+#         head(shapefile)  # Show first few rows
+#     })
+# 
+#     # Update column mapping UI based on selected shapefile
+#     output$column_mapping_ui <- renderUI({
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+#         shapefile_cols <- c("Enter value manually", names(shapefile))
+# 
+#         # Create UI elements for each standard column
+#         map_ui <- lapply(standard_columns, function(col) {
+#             selectInput(paste0("map_", col), 
+#                         label = paste("Map", col, "to:"), 
+#                         choices = shapefile_cols)
+#         })
+#         do.call(tagList, map_ui)
+#     })
+# 
+#     # Process the shapefile when the button is clicked
+#     observeEvent(input$process, {
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+# 
+#         # Function to get value or mapped column
+#         get_value_or_column <- function(col_name, shapefile) {
+#             map_input <- input[[paste0("map_", col_name)]]
+#             
+#             if(map_input == "Enter value manually") {
+#                 return(rep(NA, nrow(shapefile)))  # Replace with user input if needed
+#             } else {
+#                 return(shapefile[[map_input]])
+#             }
+#         }
+# 
+#         # Create a new tibble with user inputs and selected columns
+#         new_data <- tibble(
+#             OrgnlSN = input$shapefile,
+#             Agency = get_value_or_column("Agency", shapefile),
+#             DtAcqrd = get_value_or_column("DtAcqrd", shapefile),
+#             Acreage = get_value_or_column("Acreage", shapefile),
+#             `TF(DYS)` = get_value_or_column("TF(DYS)", shapefile),
+#             PrjctNm = get_value_or_column("PrjctNm", shapefile),
+#             DtComplt = get_value_or_column("DtComplt", shapefile),
+#             Other = get_value_or_column("Other", shapefile)
+#         )
+# 
+#         # Append to the cumulative dataset
+#         try({
+#             cumulative_data(bind_rows(cumulative_data(), new_data))
+#         }, silent = TRUE)
+#     })
+# 
+#     # Display the processed data
+#     output$processed_data <- renderTable({
+#         cumulative_data()
+#     })
+# }
+# 
+# # Run the app
+# shinyApp(ui, server)
+
+```
+
+```{r}
+# ui <- fluidPage(
+#     titlePanel("Shapefile Data Processor"),
+#     sidebarLayout(
+#         sidebarPanel(
+#             selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
+#             uiOutput("column_mapping_ui"),
+#             actionButton("process", "Process Shapefile"),
+#             actionButton("create_shapefile", "Create New Shapefile")
+#         ),
+#         mainPanel(
+#             tableOutput("data_preview"),
+#             tableOutput("processed_data")
+#         )
+#     )
+# )
+# server <- function(input, output, session) {
+#     
+#     # Reactive value to store the cumulative dataset
+#     cumulative_data <- reactiveVal(data.frame())
+# 
+#     # Preview the data of the selected shapefile, excluding the geometry column
+#     output$data_preview <- renderTable({
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+#         if ("sf" %in% class(shapefile)) {
+#             shapefile <- as.data.frame(shapefile)
+#         }
+#         head(shapefile[setdiff(names(shapefile), "geometry")])
+#     })
+# 
+#     # Update column mapping UI based on selected shapefile
+#     output$column_mapping_ui <- renderUI({
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+#         shapefile_cols <- c("Enter value manually", setdiff(names(shapefile), "geometry"))
+# 
+#         # Create UI elements for each standard column
+#         map_ui <- lapply(standard_columns, function(col) {
+#             selectInput(paste0("map_", col), 
+#                         label = paste("Map", col, "to:"), 
+#                         choices = shapefile_cols)
+#         })
+#         do.call(tagList, map_ui)
+#     })
+# 
+#     # Process the shapefile when the button is clicked
+#     observeEvent(input$process, {
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+# 
+#         # Function to get value or mapped column
+#         get_value_or_column <- function(col_name, shapefile) {
+#             map_input <- input[[paste0("map_", col_name)]]
+#             
+#             if(map_input == "Enter value manually") {
+#                 return(rep(NA, nrow(shapefile)))  # Replace with user input if needed
+#             } else {
+#                 return(shapefile[[map_input]])
+#             }
+#         }
+# 
+#         # Create a new tibble with user inputs and selected columns
+#         new_data <- tibble(
+#             OrgnlSN = input$shapefile,
+#             Agency = get_value_or_column("Agency", shapefile),
+#             DtAcqrd = get_value_or_column("DtAcqrd", shapefile),
+#             Acreage = get_value_or_column("Acreage", shapefile),
+#             `TF(DYS)` = get_value_or_column("TF(DYS)", shapefile),
+#             PrjctNm = get_value_or_column("PrjctNm", shapefile),
+#             DtComplt = get_value_or_column("DtComplt", shapefile),
+#             Other = get_value_or_column("Other", shapefile)
+#         )
+# 
+#         # Append to the cumulative dataset
+#         try({
+#             cumulative_data(bind_rows(cumulative_data(), new_data))
+#         }, silent = TRUE)
+#     })
+# 
+#     # Handle the creation of a new shapefile
+#     observeEvent(input$create_shapefile, {
+#         # Logic to create a new shapefile based on the processed data
+#         # This will be implemented as per your requirements
+#     })
+# 
+#     # Display the processed data
+#     output$processed_data <- renderTable({
+#         cumulative_data()
+#     })
+# }
+# 
+# # Run the app
+# shinyApp(ui, server)
+
+```
+
+```{r}
+# # Define the standard columns
+# standard_columns <- c("Agency", "DtAcqrd", "Acreage", "TF(DYS)", "PrjctNm", "TrtmntT", "DtComplt", "Other")
+# 
+# # UI with Dynamic Text Inputs
+# ui <- fluidPage(
+#     titlePanel("Shapefile Data Processor"),
+#     sidebarLayout(
+#         sidebarPanel(
+#             selectInput("shapefile", "Select a Shapefile:", choices = created_variables),
+#             uiOutput("column_mapping_ui"),
+#             actionButton("process", "Process Shapefile"),
+#             actionButton("create_shapefile", "Create New Shapefile")
+#         ),
+#         mainPanel(
+#             tableOutput("data_preview"),
+#             tableOutput("processed_data")
+#         )
+#     )
+# )
+# 
+# server <- function(input, output, session) {
+#     
+#     # Reactive value to store the cumulative dataset
+#     cumulative_data <- reactiveVal(data.frame())
+# 
+#     # Preview the data of the selected shapefile, excluding the geometry column
+#     output$data_preview <- renderTable({
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+#         if ("sf" %in% class(shapefile)) {
+#             shapefile <- as.data.frame(shapefile)
+#         }
+#         head(shapefile[setdiff(names(shapefile), "geometry")])
+#     })
+# 
+#      # Update column mapping UI based on selected shapefile
+#     output$column_mapping_ui <- renderUI({
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+#         shapefile_cols <- setdiff(names(shapefile), "geometry")
+# 
+#         map_ui <- lapply(standard_columns, function(col) {
+#             select_id <- paste0("map_", col)
+#             text_id <- paste0("text_", col)
+#             fluidRow(
+#                 column(6, selectInput(select_id, label = paste("Map", col, "to:"), 
+#                                       choices = c("Null", shapefile_cols, "Enter value manually"))),
+#                 column(6, uiOutput(text_id))  # Dynamic UI for text input
+#             )
+#         })
+#         do.call(tagList, map_ui)
+#     })
+# 
+#     # Dynamic text input based on dropdown selection
+#     lapply(standard_columns, function(col) {
+#         output[[paste0("text_", col)]] <- renderUI({
+#             select_id <- paste0("map_", col)
+#             if(!is.null(input[[select_id]]) && input[[select_id]] == "Enter value manually") {
+#                 textInput(paste0("manual_", col), label = paste("Enter value for", col), value = "")
+#             }
+#         })
+#     })
+# 
+# 
+#     # Process the shapefile when the button is clicked
+#     observeEvent(input$process, {
+#         req(input$shapefile)
+#         shapefile <- get(input$shapefile)
+# 
+#         # Function to get value or mapped column
+#         get_value_or_column <- function(col_name, shapefile) {
+#             map_input <- input[[paste0("map_", col_name)]]
+#             manual_input <- input[[paste0("manual_", col_name)]]
+#             
+#             if(map_input == "Enter value manually") {
+#                 # Use the manual input if "Enter value manually" is selected
+#                 return(rep(manual_input, nrow(shapefile)))
+#             } else if(map_input != "Null") {
+#                 # Use the selected column from the shapefile
+#                 return(shapefile[[map_input]])
+#             } else {
+#                 # Return NA if "Null" is selected
+#                 return(rep(NA, nrow(shapefile)))
+#             }
+#         }
+# 
+#         # Create a new tibble with user inputs and selected columns
+#         new_data <- tibble(
+#             OrgnlSN = input$shapefile,
+#             Agency = get_value_or_column("Agency", shapefile),
+#             DtAcqrd = get_value_or_column("DtAcqrd", shapefile),
+#             Acreage = get_value_or_column("Acreage", shapefile),
+#             `TF(DYS)` = get_value_or_column("TF(DYS)", shapefile),
+#             PrjctNm = get_value_or_column("PrjctNm", shapefile),
+#             TrtmntT = get_value_or_column("TrtmntT", shapefile),
+#             DtComplt = get_value_or_column("DtComplt", shapefile),
+#             Other = get_value_or_column("Other", shapefile)
+#         )
+# 
+#         # Append to the cumulative dataset
+#         try({
+#             cumulative_data(bind_rows(cumulative_data(), new_data))
+#         }, silent = TRUE)
+#     })
+# 
+#    # Handle the creation of a new shapefile
+#     observeEvent(input$create_shapefile, {
+#         # Get the processed data
+#         processed_data <- cumulative_data()
+# 
+#         # Ensure there is data to process
+#         if (nrow(processed_data) == 0) {
+#             showModal(modalDialog(
+#                 title = "No Data",
+#                 "There is no processed data to create a shapefile."
+#             ))
+#             return()
+#         }
+# 
+#         # Create a list to store geometries
+#         geometries_list <- list()
+# 
+#         # Loop through unique values in OrgnlSN and get corresponding geometries
+#         for (sn in unique(processed_data$OrgnlSN)) {
+#             original_shapefile <- get(sn)
+#             # Assuming the original shapefiles are 'sf' objects
+#             if ("sf" %in% class(original_shapefile)) {
+#                 geometries_list[[sn]] <- original_shapefile$geometry
+#             }
+#         }
+# 
+#         # Combine the geometries
+#         combined_geometry <- do.call(rbind, geometries_list)
+#         
+#         # Example conversion of a boolean field to string
+#         processed_data$`TF(DYS)` <- as.character(processed_data$`TF(DYS)`)
+#         processed_data$DtComplt <- as.character(processed_data$DtComplt)
+# 
+# 
+#         # Create a new shapefile with the combined geometries
+#         new_shapefile <- st_sf(processed_data, geometry = st_sfc(combined_geometry))
+#         st_write(new_shapefile, "new_shapefile.shp")
+# 
+#         showModal(modalDialog(
+#             title = "Success",
+#             "New shapefile created successfully."
+#         ))
+#     })
+# 
+#     # Display the processed data
+#     output$processed_data <- renderTable({
+#         cumulative_data()
+#     })
+# }
+# 
+# # Run the app
+# shinyApp(ui, server)
+```
+
+```{r}
+# new_shape <-  sf::st_read("new_shapefile.gpkg")
+# 
+# ag <-  sf::st_read(here('data','Ag_Greenbelts_02182021', 'Ag_Greenbelts_02182021.shp'))
+# 
+# Camino_Cielo_Fuelbreak <-  sf::st_read(here('data','Camino_Cielo_Fuelbreak', 'Camino_Cielo_Fuelbreak.shp'))
+# 
+# LPF <-  sf::st_read(here('data','LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017', 'LPF_Strategic_Fuelbreaks_SMP_CWPP_Final_05012017.shp'))
 ```
