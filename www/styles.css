@@ -1,0 +1,23 @@
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f4f4f9;
+    color: #333;
+    padding: 20px;
+}
+
+h1, h3 {
+    color: #336699;
+}
+
+.action-button {
+    background-color: #0066CC;
+    color: #ffffff;
+    border-radius: 8px;
+}
+
+.shiny-output-panel {
+    background-color: #ffffff;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}

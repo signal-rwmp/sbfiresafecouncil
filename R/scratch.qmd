@@ -9,7 +9,7 @@ editor: visual
 #| warning: false
 
 # Load Libraries
-libraries <- c("janitor", "tidyverse", "sf", "here", "shiny", 'DT')
+libraries <- c("janitor", "tidyverse", "sf", "here", "shiny", 'DT','shinythemes')
 lapply(libraries, function(x) {
     if (!require(x, character.only = TRUE)) {
         install.packages(x)
@@ -102,10 +102,13 @@ created_variables
 
 ```{r}
 # Define the standard columns
-standard_columns <- c("Agency", "DtAcqrd", "Acreage", "TF(DYS)", "PrjctNm", "TrtmntT", "DtComplt", "Other")
+standard_columns <- c("Agency", "DtAcqrd", "Acreage", "TF_DYS", "PrjctNm", "TrtmntT", "DtComplt", "Other")
 
 # UI with Dynamic Text Inputs
 ui <- fluidPage(
+  #includeCSS(here("www","styles.css")),  # Link to your CSS file
+  #shinythemes::themeSelector(),# theme selector is only meant to be used while developing an application
+  theme = shinytheme("readable"),
   titlePanel("Shapefile Data Processor"),
   
   # Conditional Panel for Login
@@ -131,6 +134,12 @@ ui <- fluidPage(
   # New Shapefile Modify Values Page
   conditionalPanel(
     condition = "output.currentPanel === 'modifyValues'",
+    fluidRow(
+      column(12,
+             tags$h3("Modify individual cells or columns in the selected shapefile. Raw Data is NOT altered"),
+             tags$p("Please select a file from the dropdown menu below to begin. You can modify individual cells by double clicking on the cell or entire columns in the selected shapefile. Columns with more 10 unique values are restricted from large chages as these are generally numerical columns. Column changes require pressing 'Update Column Value' buton while cell changes are instantenous. Attempting to modify the geometry will crash the application. No current UNDO button so if an error is made you'll have to start over. Click the 'Next Page' button to proceed to the column mapping page."),
+      )
+    ),
     sidebarLayout(
       sidebarPanel(
         selectInput("shapefile", "Select a Shapefile:", choices = NULL),
@@ -151,6 +160,12 @@ ui <- fluidPage(
   # Column Mapping Page
   conditionalPanel(
     condition = "output.currentPanel === 'columnMapping'",
+        fluidRow(
+      column(12,
+             tags$h3("Map columns from the selected shapefile to the standard columns. You can also enter values manually for each column."),
+             tags$p("Please select a file from the dropdown menu below to begin. You can map columns from the selected shapefile to the standard columns or enter values manually. When entering values manually the entire column will have the entered data value. Click the 'Process Data' button to stage your processed data. If creating a new shapefile then proceed to the your next choice in the dropdown. Click the 'Create New Shapefile' button to create a new shapefile with the processed data."),
+      )
+    ),
     sidebarLayout(
       sidebarPanel(
         selectInput("shapefile_mapping", "Select a Shapefile:", choices = NULL),
@@ -172,7 +187,9 @@ server <- function(input, output, session) {
   selected_cell_value <- reactiveVal(NULL)
   panel_state <- reactiveVal("login") # Default panel state
   selected_shapefile_to_update <- reactiveVal(NULL)
-  
+  # Filter to get only 'Merged' files
+  merged_files <- created_variables[grepl("^Merged", created_variables)]
+  sf_files <- created_variables[!grepl("^Merged", created_variables)]
   
   # Initialize a reactive value to store changes
   change_log <- reactiveVal(data.frame(
@@ -198,8 +215,10 @@ server <- function(input, output, session) {
   
   observe({
   if (panel_state() == "login") {
-    updateSelectInput(session, "shapefile_to_update", choices = created_variables)
-    updateSelectInput(session, "update_with_shapefile", choices = created_variables)
+
+
+    updateSelectInput(session, "shapefile_to_update", choices = merged_files)
+    updateSelectInput(session, "update_with_shapefile", choices = sf_files)
   }
   })
 
@@ -239,7 +258,7 @@ server <- function(input, output, session) {
           if (!is.null(selected_shapefile_to_update())) {
               updateSelectInput(session, "shapefile", choices = selected_shapefile_to_update())
           } else {
-              updateSelectInput(session, "shapefile", choices = created_variables)
+              updateSelectInput(session, "shapefile", choices = sf_files)
           }
       }
   })
@@ -250,7 +269,7 @@ server <- function(input, output, session) {
           if (!is.null(selected_shapefile_to_update())) {
               updateSelectInput(session, "shapefile_mapping", choices = selected_shapefile_to_update())
           } else {
-              updateSelectInput(session, "shapefile_mapping", choices = created_variables)
+              updateSelectInput(session, "shapefile_mapping", choices = sf_files)
           }
       }
   })
@@ -430,8 +449,18 @@ server <- function(input, output, session) {
   output$column_mapping_ui <- renderUI({
     req(selected_shapefile())
     shapefile <- get(selected_shapefile(), envir = .GlobalEnv)
-    shapefile_cols <- setdiff(names(shapefile), "geometry")
-
+    #shapefile_cols <- setdiff(names(shapefile), "geometry")
+    get_non_geom_columns <- function(sf_object) {
+    geom_col_name <- names(st_geometry(sf_object))
+    non_geom_cols <- setdiff(names(sf_object), geom_col_name)
+    return(non_geom_cols)
+  }
+  
+  # Usage
+  shapefile_cols <- get_non_geom_columns(shapefile)
+  
+  
+  
     map_ui <- lapply(standard_columns, function(col) {
       select_id <- paste0("map_", col)
       text_id <- paste0("text_", col)
@@ -448,47 +477,63 @@ server <- function(input, output, session) {
   lapply(standard_columns, function(col) {
     output[[paste0("text_", col)]] <- renderUI({
       select_id <- paste0("map_", col)
-      if(!is.null(input[[select_id]]) && input[[select_id]] == "Enter value manually") {
-        textInput(paste0("manual_", col), label = paste("Enter value for", col), value = "")
+      if (!is.null(input[[select_id]]) &&
+          input[[select_id]] == "Enter value manually") {
+        textInput(
+          paste0("manual_", col),
+          label = paste("Enter value for", col),
+          value = ""
+        )
       }
     })
   })
-
+  
   # Process the shapefile when the button is clicked
-  observeEvent(input$process, {
-    req(selected_shapefile())
-    shapefile <- get(selected_shapefile(), envir = .GlobalEnv)
-
-    # Function to get value or mapped column
-    get_value_or_column <- function(col_name, shapefile) {
-      map_input <- input[[paste0("map_", col_name)]]
-      manual_input <- input[[paste0("manual_", col_name)]]
-
-      if(map_input == "Enter value manually") {
-        # Use the manual input if "Enter value manually" is selected
-        return(rep(manual_input, nrow(shapefile)))
-      } else if(map_input != "Null") {
-        # Use the selected column from the shapefile
-        return(shapefile[[map_input]])
-      } else {
-        # Return NA if "Null" is selected
-        return(rep(NA, nrow(shapefile)))
+  observeEvent(
+    input$process,
+    {
+      req(selected_shapefile())
+      shapefile <- get(selected_shapefile(), envir = .GlobalEnv)
+      
+      # Function to get value or mapped column
+      get_value_or_column <- function(col_name, shapefile) {
+        map_input <- input[[paste0("map_", col_name)]]
+        manual_input <- input[[paste0("manual_", col_name)]]
+        
+        if (map_input == "Enter value manually") {
+          # Use the manual input if "Enter value manually" is selected
+          return(rep(manual_input, nrow(shapefile)))
+        } else if (map_input != "Null") {
+          # Use the selected column from the shapefile
+          return(shapefile[[map_input]])
+        } else {
+          # Return NA if "Null" is selected
+          return(rep(NA, nrow(shapefile)))
+        }
       }
-    }
+      
+        # Get the entered username
+    username <- input$user_name
+
+    # Get the current timestamp
+    timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+
 
     # Create a new tibble with user inputs and selected columns
     new_data <- tibble(
-      OrgnlSN =selected_shapefile(),
+      OrgnlSN = selected_shapefile(),
       Agency = get_value_or_column("Agency", shapefile),
       DtAcqrd = get_value_or_column("DtAcqrd", shapefile),
       Acreage = get_value_or_column("Acreage", shapefile),
-      `TF(DYS)` = get_value_or_column("TF(DYS)", shapefile),
+      TF_DYS = get_value_or_column("TF_DYS", shapefile),
       PrjctNm = get_value_or_column("PrjctNm", shapefile),
       TrtmntT = get_value_or_column("TrtmntT", shapefile),
       DtComplt = get_value_or_column("DtComplt", shapefile),
-      Other = get_value_or_column("Other", shapefile)
+      Other = get_value_or_column("Other", shapefile),
+      Username = username,
+      Timestamp = timestamp
     )
-    print(paste("New data dimensions:", dim(new_data)))  # Debugging statement
+    #print(paste("New data dimensions:", dim(new_data)))  # Debugging statement
 
     # Append to the cumulative dataset
     try({
@@ -504,7 +549,7 @@ server <- function(input, output, session) {
   datatable(
     cumulative_data(),
     extensions = c('Scroller'),
-    options = list(scroller = TRUE, scrollY = 400, deferRender = TRUE, info = TRUE),
+    options = list(scroller = TRUE, scrollY = 800, deferRender = TRUE, info = TRUE),
     selection = 'none'
   )
 })
@@ -524,16 +569,40 @@ server <- function(input, output, session) {
         ))
         return()
     }
+    # Access the current state of change_log
+    log_data <- change_log()
+    log_file_path <- here('www', "change_log.txt")
 
-    # Get the entered username
-    username <- input$user_name
+    # Check if the log_data is not empty
+    if (nrow(log_data) > 0) {
+        # Get the entered username
+        username <- isolate(input$user_name)  # use isolate to avoid reactivity
 
-    # Get the current timestamp
-    timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        # Get the current timestamp
+        timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 
-    # Add username and timestamp columns to the processed data
-    processed_data$Username <- username
-    processed_data$Timestamp <- timestamp
+        # Create a single line with username and timestamp
+        user_time_stamp_line <- paste("User:", username, "Timestamp:", timestamp, sep = "\t")
+
+        # Write the username and timestamp line to the file
+        write_lines(user_time_stamp_line, log_file_path, append = TRUE)
+        write_lines("--------------------------------------------------", log_file_path, append = TRUE)
+        # Write the change log data below the username and timestamp
+        write.table(
+            log_data,
+            log_file_path,
+            sep = "\t",
+            row.names = FALSE,
+            col.names = !file.exists(log_file_path),  # write column names only if file doesn't exist
+            quote = FALSE,
+            append = TRUE
+        )
+        write_lines("--------------------------------------------------", log_file_path, append = TRUE)
+        # Optionally, clear log_data after writing, if you don't need to accumulate the entries
+        # change_log(data.frame(Type = character(), Column = character(), Row = integer(),
+        #                      OldValue = character(), NewValue = character(),
+        #                      stringsAsFactors = FALSE))
+    }
 
     # Create a list to store sf objects
     sf_list <- list()
@@ -541,7 +610,7 @@ server <- function(input, output, session) {
     # Loop through unique values in OrgnlSN and create sf objects
     for (sn in unique(processed_data$OrgnlSN)) {
         original_shapefile <- get(sn)
-        print(paste("Original shapefile dimensions for", sn, ":", dim(original_shapefile)))  # Debugging statement
+        #print(paste("Original shapefile dimensions for", sn, ":", dim(original_shapefile)))  # Debugging statement
 
         # Assuming the original shapefiles are 'sf' objects
         if ("sf" %in% class(original_shapefile)) {
@@ -553,19 +622,11 @@ server <- function(input, output, session) {
     
     # Combine the sf objects
     new_shapefile <- do.call(rbind, sf_list)
-    print(paste("New shapefile dimensions:", dim(new_shapefile)))  # Debugging statement
+    #print(paste("New shapefile dimensions:", dim(new_shapefile)))  # Debugging statement
     
     
-    if (is.na(st_crs(new_shapefile))) {
-    # Set the CRS if it's NA (not available)
-    new_shapefile <- st_set_crs(new_shapefile, 2229)
-    } else {
-        # Transform the CRS to EPSG:2229
-        new_shapefile <- st_transform(new_shapefile, 2229)
-    }
-    
-    
-    
+     # Set the CRS of the new_shapefile to the target CRS
+    new_shapefile <- st_set_crs(new_shapefile, st_crs(2229))
     # Get the data directory
     data_dir <- here("data","Merged")
     # Create a GeoPackage filename with the current date
@@ -587,52 +648,76 @@ server <- function(input, output, session) {
         title = "Success",
         paste("New layer added to GeoPackage:", geopackage_path, "with layer name:", layer_name)
     ))
-    } else if (input$action_type == "update") {
+    }  else if (input$action_type == "update") {
     # Get the selected shapefiles for updating
     shapefile_to_update <- input$shapefile_to_update
-    update_with_shapefile <- input$update_with_shapefile
+    update_with_shapefile <- new_shapefile
     
-    # Read the shapefiles
-    existing_shapefile <- get(shapefile_to_update)
-    new_shapefile_data <- processed_data[processed_data$OrgnlSN == update_with_shapefile, ]
+    # Read the shapefiles from the environment variables
+    existing_shapefile <- get(shapefile_to_update, envir = .GlobalEnv)
+    #new_shapefile_data <- processed_data
+    
+    # Print column names for debugging
+    #print(paste("Columns in existing_shapefile:", paste(names(existing_shapefile), collapse = ", ")))
+    #print(paste("Columns in new_shapefile_data:", paste(names(update_with_shapefile), collapse = ", ")))
     
     if (input$update_action == "add") {
-        # Add the rows of the new shapefile to the existing shapefile
-        updated_shapefile <- rbind(existing_shapefile, new_shapefile_data)
-        if (is.na(st_crs(updated_shapefile))) {
-    # Set the CRS if it's NA (not available)
+      # Add the geometry column from the existing shapefile to the new shapefile data
+      #new_shapefile_data$geom <- existing_shapefile$geom
+      
+      
+      #Rename the geometry column to 'geom'
+      st_geometry(update_with_shapefile) <- "geom"
+      
+      # Add the rows of the new shapefile to the existing shapefile
+      updated_shapefile <- rbind(existing_shapefile, update_with_shapefile)
+      
+      if (is.na(st_crs(updated_shapefile))) {
+        # Set the CRS if it's NA (not available)
         updated_shapefile <- st_set_crs(updated_shapefile, 2229)
-        } else {
-            # Transform the CRS to EPSG:2229
-            updated_shapefile <- st_transform(updated_shapefile, 2229)
-        }
-        # Write the updated shapefile as a new layer in the GeoPackage
-        st_write(updated_shapefile, geopackage_path, layer = layer_name, append = TRUE)
-        
-        showModal(modalDialog(
-            title = "Success",
-            paste("Rows added to new shapefile:", geopackage_path, "with layer name:", layer_name)
-        ))
+      } else {
+        # Transform the CRS to EPSG:2229
+        updated_shapefile <- st_transform(updated_shapefile, 2229)
+      }
+      
+      # Write the updated shapefile as a new layer in the GeoPackage
+      st_write(updated_shapefile, geopackage_path, layer = layer_name, append = TRUE)
+      
+      showModal(modalDialog(
+        title = "Success",
+        paste("Rows added to new shapefile:", geopackage_path, "with layer name:", layer_name)
+      ))
     } else if (input$update_action == "replace") {
-        # Replace specific rows in the existing shapefile with the new shapefile data
-        existing_shapefile[existing_shapefile$OrgnlSN == update_with_shapefile, ] <- new_shapefile_data
-        if (is.na(st_crs(existing_shapefile))) {
-    # Set the CRS if it's NA (not available)
+
+      # Replace specific rows in the existing shapefile with the new shapefile data
+            #Rename the geometry column to 'geom'
+      st_geometry(update_with_shapefile) <- "geom"
+      
+      existing_shapefile <- existing_shapefile %>%
+        filter(!OrgnlSN %in% unique(update_with_shapefile$OrgnlSN)) |> # Remove rows with matching OrgnlSN
+        bind_rows(update_with_shapefile)  # Add the new shapefile data
+      
+  
+
+      
+      if (is.na(st_crs(update_with_shapefile))) {
+        # Set the CRS if it's NA (not available)
         existing_shapefile <- st_set_crs(existing_shapefile, 2229)
-        } else {
-            # Transform the CRS to EPSG:2229
-            existing_shapefile <- st_transform(existing_shapefile, 2229)
-        }
-        # Write the updated shapefile as a new layer in the GeoPackage
-        st_write(existing_shapefile, geopackage_path, layer = layer_name, append = TRUE)
-        
-        showModal(modalDialog(
-            title = "Success",
-            paste("Rows replaced in new shapefile:", geopackage_path, "with layer name:", layer_name)
-        ))
-        }
+      } else {
+        # Transform the CRS to EPSG:2229
+        existing_shapefile <- st_transform(existing_shapefile, 2229)
+      }
+      
+      # Write the updated shapefile as a new layer in the GeoPackage
+      st_write(existing_shapefile, geopackage_path, layer = layer_name, append = TRUE)
+      
+      showModal(modalDialog(
+        title = "Success",
+        paste("Rows replaced in new shapefile:", geopackage_path, "with layer name:", layer_name)
+      ))
     }
-  })
+  }
+})
 
 
 }
